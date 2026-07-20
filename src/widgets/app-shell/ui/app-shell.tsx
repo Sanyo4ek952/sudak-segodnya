@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/shared/lib/cn";
 import { AppBottomNavigation } from "@/widgets/app-shell/ui/app-bottom-navigation";
 import { AppTopBar } from "@/widgets/app-shell/ui/app-top-bar";
+import { PwaManager } from "@/widgets/app-shell/ui/pwa-manager";
 
 type AppShellProps = {
   children: ReactNode;
@@ -27,6 +28,7 @@ export function AppShell({ children }: AppShellProps) {
       >
         {children}
       </main>
+      <PwaManager />
       <AppBottomNavigation />
     </div>
   );
