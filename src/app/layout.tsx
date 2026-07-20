@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { PublicNavigation } from "@/widgets/public-navigation/ui/public-navigation";
+import { AppShell } from "@/widgets/app-shell/ui/app-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,10 +21,7 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body>
-        <PublicNavigation />
-        <main className="mx-auto min-h-screen w-full max-w-content px-4 pb-28 pt-4 sm:px-6 lg:px-8 lg:pb-10 lg:pt-6">
-          {children}
-        </main>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
