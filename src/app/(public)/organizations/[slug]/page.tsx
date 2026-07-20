@@ -5,10 +5,10 @@ import { Card, CardContent } from "@/shared/ui/card";
 import { LinkButton } from "@/shared/ui/button";
 import { SectionHeader } from "@/shared/ui/section-header";
 import { FavoriteToggle } from "@/features/save-favorite/ui/favorite-toggle";
-import { getOrganizationBySlug, organizations } from "@/entities/organization/model/mock";
+import { getPublicOrganizationBySlug } from "@/entities/organization/api/organizations";
 import { OrganizationImage } from "@/entities/organization/ui/organization-image";
 import { organizationCategoryLabels } from "@/entities/organization/model/types";
-import { getPublicationsByOrganization } from "@/entities/publication/model/mock";
+import { listPublicPublicationsByOrganization } from "@/entities/publication/api/publications";
 import { PublicationCard } from "@/entities/publication/ui/publication-card";
 import { formatDate } from "@/shared/lib/date";
 
@@ -18,19 +18,17 @@ type OrganizationPageProps = {
   }>;
 };
 
-export function generateStaticParams() {
-  return organizations.map((organization) => ({ slug: organization.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function OrganizationPage({ params }: OrganizationPageProps) {
   const { slug } = await params;
-  const organization = getOrganizationBySlug(slug);
+  const { organization } = await getPublicOrganizationBySlug(slug);
 
   if (!organization) {
     notFound();
   }
 
-  const organizationPublications = getPublicationsByOrganization(organization.id);
+  const { publications: organizationPublications } = await listPublicPublicationsByOrganization(organization.id);
   const availableServices = organization.services.filter((service) => service.isAvailable);
 
   return (

@@ -1,7 +1,18 @@
 import { PublicFeed } from "@/widgets/public-feed/ui/public-feed";
 import { WeatherCompact } from "@/widgets/weather/ui/weather-compact";
+import {
+  getActiveImportantAnnouncement,
+  listPublicPublications
+} from "@/entities/publication/api/publications";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const [{ publications, error: publicationsError }, { announcement }] = await Promise.all([
+    listPublicPublications(),
+    getActiveImportantAnnouncement()
+  ]);
+
   return (
     <div className="space-y-6">
       <section className="space-y-3">
@@ -16,7 +27,7 @@ export default function HomePage() {
         </div>
       </section>
       <WeatherCompact />
-      <PublicFeed />
+      <PublicFeed publications={publications} importantAnnouncement={announcement} error={publicationsError} />
     </div>
   );
 }

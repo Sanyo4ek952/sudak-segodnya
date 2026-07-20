@@ -35,6 +35,7 @@ export type Publication = {
   isFree: boolean;
   category: OrganizationCategory | "sport";
   image?: string;
+  contactPhone?: string;
   ageLimit?: string;
   isPinned?: boolean;
   updatedAt: string;
