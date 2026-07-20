@@ -36,7 +36,7 @@ export function PublicNavigation() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-popover md:hidden"
         aria-label="Нижняя навигация"
       >
-        <div className="mx-auto grid max-w-form grid-cols-3 gap-1">
+        <div className="mx-auto grid max-w-form grid-cols-4 gap-1">
           {publicNavigationItems.map((item) => {
             const isActive = item.href === "/" ? pathname === item.href : pathname.startsWith(item.href);
             return (
