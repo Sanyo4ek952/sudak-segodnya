@@ -726,6 +726,34 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_member_organization_profile: {
+        Args: {
+          address: string
+          description: string
+          name: string
+          organization_id: string
+          phone: string
+          working_hours: string
+        }
+        Returns: {
+          address: string | null
+          category_id: string | null
+          contact_links: Json
+          cover_path: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          last_public_update_at: string | null
+          logo_path: string | null
+          name: string
+          phone: string | null
+          slug: string
+          status: Database["public"]["Enums"]["organization_status"]
+          updated_at: string
+          working_hours: string | null
+        }
+      }
     }
     Enums: {
       important_announcement_status: "draft" | "active" | "expired" | "hidden"
