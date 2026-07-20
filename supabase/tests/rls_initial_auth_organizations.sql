@@ -2,7 +2,7 @@ begin;
 
 set search_path = public, extensions;
 
-select plan(21);
+select plan(41);
 
 create or replace function pg_temp.statement_raises(statement text)
 returns boolean
@@ -76,7 +76,10 @@ values
   ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'draft', 'User One App', '30000000-0000-0000-0000-000000000008', 'Description', 'Address', 'Phone', 'Owner'),
   ('20000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', 'draft', 'User Two App', '30000000-0000-0000-0000-000000000008', 'Description', 'Address', 'Phone', 'Owner'),
   ('20000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'needs_changes', 'Needs Changes App', '30000000-0000-0000-0000-000000000008', 'Description', 'Address', 'Phone', 'Owner'),
-  ('20000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'rejected', 'Rejected App', '30000000-0000-0000-0000-000000000008', 'Description', 'Address', 'Phone', 'Owner');
+  ('20000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'rejected', 'Rejected App', '30000000-0000-0000-0000-000000000008', 'Description', 'Address', 'Phone', 'Owner'),
+  ('20000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000002', 'submitted', 'Changes Review App', '30000000-0000-0000-0000-000000000008', 'Description', 'Address', 'Phone', 'Owner'),
+  ('20000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000002', 'submitted', 'Approve Review App', '30000000-0000-0000-0000-000000000008', 'Description', 'Address', 'Phone', 'Owner'),
+  ('20000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000002', 'submitted', 'Forbidden Transition App', '30000000-0000-0000-0000-000000000008', 'Description', 'Address', 'Phone', 'Owner');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
@@ -276,6 +279,211 @@ select is(
   'representative cannot change organization system status'
 );
 
+select is(
+  (
+    select count(*)
+    from public.organization_applications
+    where status = 'submitted'
+  ),
+  1::bigint,
+  'regular user does not read the full administrative submitted applications list'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select * from public.approve_organization_application('20000000-0000-0000-0000-000000000006') $$
+  ),
+  'regular user cannot call approve application rpc'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select * from public.request_organization_application_changes(
+         '20000000-0000-0000-0000-000000000006',
+         'Need more details'
+       ) $$
+  ),
+  'regular user cannot call request changes application rpc'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select * from public.reject_organization_application(
+         '20000000-0000-0000-0000-000000000006',
+         'Rejected'
+       ) $$
+  ),
+  'regular user cannot call reject application rpc'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ update public.organization_applications
+       set reviewed_by = '00000000-0000-0000-0000-000000000001',
+           reviewed_at = now(),
+           admin_comment = 'Forged review'
+       where id = '20000000-0000-0000-0000-000000000001' $$
+  ),
+  'regular user cannot forge review fields'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000003', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select is(
+  (
+    select count(*)
+    from public.organization_applications
+    where status = 'submitted'
+  ),
+  4::bigint,
+  'admin reads the full submitted applications list'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select * from public.request_organization_application_changes(
+         '20000000-0000-0000-0000-000000000005',
+         '   '
+       ) $$
+  ),
+  'request changes requires admin comment'
+);
+
+select is(
+  (
+    select public.request_organization_application_changes(
+      '20000000-0000-0000-0000-000000000005',
+      'Уточните подтверждающую информацию'
+    )->>'status'
+  ),
+  'needs_changes'::text,
+  'admin can request changes for submitted application'
+);
+
+select is(
+  (
+    select admin_comment
+    from public.organization_applications
+    where id = '20000000-0000-0000-0000-000000000005'
+  ),
+  'Уточните подтверждающую информацию'::text,
+  'request changes stores admin comment'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select * from public.approve_organization_application('20000000-0000-0000-0000-000000000005') $$
+  ),
+  'needs_changes application cannot be approved'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select * from public.reject_organization_application(
+         '20000000-0000-0000-0000-000000000005',
+         ''
+       ) $$
+  ),
+  'rejection requires admin comment'
+);
+
+select is(
+  (
+    select public.reject_organization_application(
+      '20000000-0000-0000-0000-000000000005',
+      'Не подтверждена связь с организацией'
+    )->>'status'
+  ),
+  'rejected'::text,
+  'admin can reject needs_changes application'
+);
+
+select is(
+  (
+    select count(*)
+    from public.organizations
+    where name = 'Changes Review App'
+  ),
+  0::bigint,
+  'rejection does not create organization'
+);
+
+select is(
+  (
+    select public.approve_organization_application('20000000-0000-0000-0000-000000000006')->>'status'
+  ),
+  'approved'::text,
+  'admin can approve submitted application'
+);
+
+select is(
+  (
+    select count(*)
+    from public.organizations
+    where id = (
+      select organization_id
+      from public.organization_applications
+      where id = '20000000-0000-0000-0000-000000000006'
+    )
+  ),
+  1::bigint,
+  'approval creates exactly one organization'
+);
+
+select is(
+  (
+    select count(*)
+    from public.organization_members
+    where organization_id = (
+      select organization_id
+      from public.organization_applications
+      where id = '20000000-0000-0000-0000-000000000006'
+    )
+      and user_id = '00000000-0000-0000-0000-000000000002'
+      and role = 'owner'
+      and is_active = true
+  ),
+  1::bigint,
+  'approval creates exactly one active owner membership'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select * from public.approve_organization_application('20000000-0000-0000-0000-000000000006') $$
+  ),
+  'repeated approval is rejected'
+);
+
+select is(
+  (
+    select count(*)
+    from public.organization_members
+    where user_id = '00000000-0000-0000-0000-000000000002'
+      and role = 'owner'
+  ),
+  1::bigint,
+  'repeated approval does not create duplicate owner memberships'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select * from public.approve_organization_application('20000000-0000-0000-0000-000000000001') $$
+  ),
+  'draft application cannot be approved'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select * from public.reject_organization_application(
+         '20000000-0000-0000-0000-000000000006',
+         'Late rejection'
+       ) $$
+  ),
+  'approved application cannot be rejected'
+);
+
 set local role anon;
 select set_config('request.jwt.claim.sub', '', true);
 select set_config('request.jwt.claim.role', 'anon', true);
@@ -285,8 +493,8 @@ select is(
     select array_agg(slug order by slug)
     from public.organizations
   ),
-  array['active-org'::text],
-  'public user sees only active organizations'
+  array['active-org'::text, 'approve-review-app-20000000'::text],
+  'public user sees only active organizations, including approved applications'
 );
 
 select ok(

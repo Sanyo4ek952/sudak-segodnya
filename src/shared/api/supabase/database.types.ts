@@ -282,9 +282,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_organization_application: {
+        Args: { application_id: string }
+        Returns: Json
+      }
       is_admin: { Args: never; Returns: boolean }
       is_org_member: { Args: { org_id: string }; Returns: boolean }
       is_org_owner: { Args: { org_id: string }; Returns: boolean }
+      reject_organization_application: {
+        Args: { application_id: string; admin_comment: string }
+        Returns: Json
+      }
+      request_organization_application_changes: {
+        Args: { application_id: string; admin_comment: string }
+        Returns: Json
+      }
       submit_organization_application: {
         Args: { application_id: string }
         Returns: Database["public"]["Tables"]["organization_applications"]["Row"]
