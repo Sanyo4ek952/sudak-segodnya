@@ -6,7 +6,7 @@ import { Button, LinkButton } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
 import { FavoriteToggle } from "@/features/save-favorite/ui/favorite-toggle";
-import { getPublicationBySlug, publications } from "@/entities/publication/model/mock";
+import { getPublicPublicationBySlug } from "@/entities/publication/api/publications";
 import { publicationTypeLabels } from "@/entities/publication/model/types";
 import { formatDate, formatDateTime } from "@/shared/lib/date";
 
@@ -16,13 +16,11 @@ type PublicationPageProps = {
   }>;
 };
 
-export function generateStaticParams() {
-  return publications.map((publication) => ({ slug: publication.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function PublicationPage({ params }: PublicationPageProps) {
   const { slug } = await params;
-  const publication = getPublicationBySlug(slug);
+  const { publication } = await getPublicPublicationBySlug(slug);
 
   if (!publication) {
     notFound();
@@ -33,6 +31,9 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
     : publication.validUntil
       ? `Актуально до ${formatDate(publication.validUntil)}`
       : publication.schedule ?? "Актуально";
+  const contactPhoneHref = publication.contactPhone
+    ? `tel:${publication.contactPhone.replace(/\D/g, "")}`
+    : null;
 
   return (
     <article className="mx-auto max-w-3xl space-y-6">
@@ -99,9 +100,7 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
       <section className="space-y-4">
         <SectionHeader title="Действия" />
         <div className="grid gap-3 sm:grid-cols-3">
-          <LinkButton href={`tel:+79780000000`} variant="primary">
-            Позвонить
-          </LinkButton>
+          {contactPhoneHref ? <LinkButton href={contactPhoneHref}>Позвонить</LinkButton> : null}
           <LinkButton
             href={`https://yandex.ru/maps/?text=${encodeURIComponent(publication.place)}`}
             variant="outline"

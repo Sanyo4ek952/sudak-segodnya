@@ -1,6 +1,6 @@
 "use client";
 
-import { filterItems } from "@/entities/publication/model/mock";
+import { filterItems } from "@/entities/publication/model/filters";
 import type { PublicationFilter } from "@/entities/publication/model/types";
 import { cn } from "@/shared/lib/cn";
 

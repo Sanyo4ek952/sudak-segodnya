@@ -2,37 +2,54 @@
 
 import { useMemo, useState } from "react";
 import { PublicationCard } from "@/entities/publication/ui/publication-card";
-import { filterPublications, getPinnedPublication } from "@/entities/publication/model/mock";
+import { filterPublications } from "@/entities/publication/model/filters";
+import type { ImportantAnnouncement } from "@/entities/publication/api/publications";
+import type { Publication } from "@/entities/publication/model/types";
 import type { PublicationFilter } from "@/entities/publication/model/types";
 import { FeedFilters } from "@/widgets/public-feed/ui/feed-filters";
 import { EmptyState } from "@/shared/ui/empty-state";
+import { ErrorState } from "@/shared/ui/error-state";
 import { SectionHeader } from "@/shared/ui/section-header";
 import { Card, CardContent } from "@/shared/ui/card";
 import { Badge } from "@/shared/ui/badge";
 import { LinkButton } from "@/shared/ui/button";
 import { formatDate } from "@/shared/lib/date";
 
-export function PublicFeed() {
+type PublicFeedProps = {
+  publications: Publication[];
+  importantAnnouncement: ImportantAnnouncement | null;
+  error?: string | null;
+};
+
+export function PublicFeed({ publications, importantAnnouncement, error = null }: PublicFeedProps) {
   const [filter, setFilter] = useState<PublicationFilter>("all");
-  const publications = useMemo(() => filterPublications(filter), [filter]);
-  const pinned = getPinnedPublication();
+  const filteredPublications = useMemo(
+    () => filterPublications(publications, filter),
+    [filter, publications]
+  );
 
   return (
     <section className="space-y-5">
-      {pinned ? (
+      {importantAnnouncement ? (
         <Card className="border-info bg-surface">
           <CardContent className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="info">Важно</Badge>
-              {pinned.validUntil ? <span className="text-sm text-foreground-muted">до {formatDate(pinned.validUntil)}</span> : null}
+              {importantAnnouncement.activeUntil ? (
+                <span className="text-sm text-foreground-muted">
+                  до {formatDate(importantAnnouncement.activeUntil)}
+                </span>
+              ) : null}
             </div>
             <div className="space-y-2">
-              <h2 className="text-lg font-semibold">{pinned.title}</h2>
-              <p className="text-sm leading-6 text-foreground-muted">{pinned.description}</p>
+              <h2 className="text-lg font-semibold">{importantAnnouncement.title}</h2>
+              <p className="text-sm leading-6 text-foreground-muted">{importantAnnouncement.description}</p>
             </div>
-            <LinkButton href={`/publications/${pinned.slug}`} variant="outline" size="sm">
-              Открыть
-            </LinkButton>
+            {importantAnnouncement.publicationSlug ? (
+              <LinkButton href={`/publications/${importantAnnouncement.publicationSlug}`} variant="outline" size="sm">
+                Открыть
+              </LinkButton>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -42,9 +59,11 @@ export function PublicFeed() {
         <FeedFilters value={filter} onChange={setFilter} />
       </div>
 
-      {publications.length ? (
+      {error ? (
+        <ErrorState title="Лента временно недоступна" description={error} />
+      ) : filteredPublications.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {publications.map((publication) => (
+          {filteredPublications.map((publication) => (
             <PublicationCard key={publication.id} publication={publication} />
           ))}
         </div>
@@ -57,7 +76,7 @@ export function PublicFeed() {
         />
       )}
 
-      {publications.length ? (
+      {!error && filteredPublications.length ? (
         <p className="text-center text-sm text-foreground-muted">Актуальные публикации закончились.</p>
       ) : null}
     </section>
