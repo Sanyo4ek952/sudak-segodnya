@@ -15,3 +15,23 @@ export const organizationApplicationStatusLabels: Record<OrganizationApplication
 };
 
 export const editableApplicationStatuses: OrganizationApplication["status"][] = ["draft", "needs_changes"];
+
+export function getOrganizationApplicationStatusVariant(status: OrganizationApplication["status"]) {
+  if (status === "approved") {
+    return "success";
+  }
+
+  if (status === "needs_changes") {
+    return "warning";
+  }
+
+  if (status === "rejected") {
+    return "error";
+  }
+
+  if (status === "submitted") {
+    return "info";
+  }
+
+  return "muted";
+}

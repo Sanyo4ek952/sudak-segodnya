@@ -1,16 +1,31 @@
 import type { Metadata, Viewport } from "next";
-import { PublicNavigation } from "@/widgets/public-navigation/ui/public-navigation";
+import { AppShell } from "@/widgets/app-shell/ui/app-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Судак Сегодня",
-  description: "Городская лента актуальных событий, объявлений и организаций Судака."
+  description: "Городская лента актуальных событий, объявлений и организаций Судака.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Судак Сегодня",
+    statusBarStyle: "default"
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" }
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }]
+  }
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#f6f9fa"
+  viewportFit: "cover",
+  themeColor: "#166d88"
 };
 
 export default function RootLayout({
@@ -21,10 +36,7 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body>
-        <PublicNavigation />
-        <main className="mx-auto min-h-screen w-full max-w-content px-4 pb-28 pt-4 sm:px-6 lg:px-8 lg:pb-10 lg:pt-6">
-          {children}
-        </main>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

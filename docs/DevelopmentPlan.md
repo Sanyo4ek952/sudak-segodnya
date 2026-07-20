@@ -196,4 +196,29 @@
 - не строить отдельное аналитическое хранилище;
 - не заменять RLS проверками только в приложении;
 - не использовать service role key в клиентском коде.
+## Этап PWA. Установка и безопасный offline-режим
 
+Цель: превратить mobile-first веб-приложение в устанавливаемую PWA без изменения Supabase-схемы, RLS, auth-flow и бизнес-логики.
+
+Работы:
+
+- добавить manifest через `src/app/manifest.ts`;
+- подготовить временные PWA-иконки до утверждения бренда;
+- добавить production-only service worker без PWA-зависимостей;
+- добавить `/offline` внутри общего `AppShell`;
+- добавить компактный install/update UI;
+- документировать правила PWA в `docs/PWA.md`.
+
+Ограничения:
+
+- не кешировать `/admin/**`, `/business/**`, auth routes, API, Supabase API/Auth/Storage, Server Actions, RPC, формы и мутации;
+- не кешировать погоду, будущие публикации, статусы мероприятий и данные организаций как актуальные данные;
+- offline fallback применять только к публичным navigation GET-запросам.
+
+Проверки:
+
+- `npx tsc --noEmit`;
+- `npm run lint`;
+- `npm run build`;
+- manifest, service worker, offline fallback, install prompt, standalone display;
+- Cache Storage после посещения `/`, `/organizations`, `/business`, `/admin`.
