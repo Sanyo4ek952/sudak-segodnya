@@ -44,6 +44,7 @@ export type Database = {
           address: string | null
           admin_comment: string | null
           applicant_id: string
+          category_id: string | null
           category_name: string | null
           confirmation_info: string | null
           created_at: string
@@ -63,6 +64,7 @@ export type Database = {
           address?: string | null
           admin_comment?: string | null
           applicant_id?: string
+          category_id?: string | null
           category_name?: string | null
           confirmation_info?: string | null
           created_at?: string
@@ -82,6 +84,7 @@ export type Database = {
           address?: string | null
           admin_comment?: string | null
           applicant_id?: string
+          category_id?: string | null
           category_name?: string | null
           confirmation_info?: string | null
           created_at?: string
@@ -99,6 +102,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "organization_applications_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "organization_categories"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "organization_applications_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -106,6 +116,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      organization_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       organization_members: {
         Row: {
@@ -148,6 +191,7 @@ export type Database = {
       organizations: {
         Row: {
           address: string | null
+          category_id: string | null
           contact_links: Json
           cover_path: string | null
           created_at: string
@@ -164,6 +208,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          category_id?: string | null
           contact_links?: Json
           cover_path?: string | null
           created_at?: string
@@ -180,6 +225,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          category_id?: string | null
           contact_links?: Json
           cover_path?: string | null
           created_at?: string
@@ -194,7 +240,15 @@ export type Database = {
           updated_at?: string
           working_hours?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "organizations_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "organization_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -231,6 +285,10 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_org_member: { Args: { org_id: string }; Returns: boolean }
       is_org_owner: { Args: { org_id: string }; Returns: boolean }
+      submit_organization_application: {
+        Args: { application_id: string }
+        Returns: Database["public"]["Tables"]["organization_applications"]["Row"]
+      }
     }
     Enums: {
       organization_application_status:
