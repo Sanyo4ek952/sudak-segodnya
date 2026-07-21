@@ -5,10 +5,20 @@ type FormFieldProps = {
   label: string;
   hint?: string;
   error?: string;
+  hintId?: string;
+  errorId?: string;
   children: ReactNode;
 };
 
-export function FormField({ id, label, hint, error, children }: FormFieldProps) {
+export function FormField({
+  id,
+  label,
+  hint,
+  error,
+  hintId = `${id}-hint`,
+  errorId = `${id}-error`,
+  children
+}: FormFieldProps) {
   return (
     <div className="space-y-1.5">
       <label htmlFor={id} className="block text-sm font-medium text-foreground">
@@ -16,9 +26,13 @@ export function FormField({ id, label, hint, error, children }: FormFieldProps) 
       </label>
       {children}
       {error ? (
-        <p className="text-sm leading-5 text-error">{error}</p>
+        <p id={errorId} className="text-sm leading-5 text-error">
+          {error}
+        </p>
       ) : hint ? (
-        <p className="text-sm leading-5 text-foreground-muted">{hint}</p>
+        <p id={hintId} className="text-sm leading-5 text-foreground-muted">
+          {hint}
+        </p>
       ) : null}
     </div>
   );

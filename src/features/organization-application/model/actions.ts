@@ -6,7 +6,11 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/shared/api/supabase/server";
 import type { Tables } from "@/shared/api/supabase/database.types";
 import type { OrganizationMembership } from "@/entities/organization-application/model/types";
-import type { ApplicationFormState } from "@/features/organization-application/model/types";
+import {
+  applicationFieldErrorMessages,
+  type ApplicationFieldName,
+  type ApplicationFormState
+} from "@/features/organization-application/model/types";
 
 const applicationSchema = z.object({
   applicationId: z.string().uuid().optional().or(z.literal("")),
@@ -35,19 +39,9 @@ function getString(formData: FormData, name: string) {
   return typeof value === "string" ? value : "";
 }
 
-const applicationFieldErrorMessages: Record<string, string> = {
-  organizationName: "Укажите название организации: минимум 2 символа.",
-  categoryId: "Выберите активную категорию из списка.",
-  description: "Добавьте краткое описание: минимум 10 символов.",
-  address: "Укажите адрес: минимум 3 символа.",
-  phone: "Укажите контактный телефон: минимум 5 символов.",
-  relationship: "Укажите вашу связь с организацией: минимум 3 символа.",
-  confirmationInfo: "Подтверждающая информация должна быть не длиннее 2000 символов."
-};
-
 function formError(
   message = "Проверьте отмеченные поля и попробуйте снова.",
-  fieldErrors?: Record<string, string>
+  fieldErrors?: Partial<Record<ApplicationFieldName, string>>
 ): ApplicationFormState {
   return {
     status: "error",
@@ -57,16 +51,21 @@ function formError(
 }
 
 function validationError(error: z.ZodError): ApplicationFormState {
-  const fieldErrors: Record<string, string> = {};
+  const fieldErrors: Partial<Record<ApplicationFieldName, string>> = {};
 
   for (const issue of error.issues) {
     const fieldName = issue.path[0];
 
-    if (typeof fieldName !== "string" || fieldErrors[fieldName]) {
+    if (
+      typeof fieldName !== "string" ||
+      !(fieldName in applicationFieldErrorMessages) ||
+      fieldErrors[fieldName as ApplicationFieldName]
+    ) {
       continue;
     }
 
-    fieldErrors[fieldName] = applicationFieldErrorMessages[fieldName] ?? "Проверьте значение поля.";
+    fieldErrors[fieldName as ApplicationFieldName] =
+      applicationFieldErrorMessages[fieldName as ApplicationFieldName];
   }
 
   return formError("Проверьте отмеченные поля и попробуйте снова.", fieldErrors);
