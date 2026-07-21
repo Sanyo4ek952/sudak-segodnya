@@ -63,6 +63,25 @@ export default async function BusinessPage() {
         </Card>
       ) : null}
 
+      {state.profile?.role === "admin" ? (
+        <Card>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold">Администрирование</h2>
+                <p className="text-sm leading-6 text-foreground-muted">
+                  У аккаунта есть доступ к модерации заявок, публикаций и важных объявлений.
+                </p>
+              </div>
+              <Badge variant="info">Админ</Badge>
+            </div>
+            <LinkButton href="/admin" variant="outline" size="sm">
+              Открыть админ-панель
+            </LinkButton>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {hasMemberships ? (
         <Card>
           <CardContent className="space-y-3">
