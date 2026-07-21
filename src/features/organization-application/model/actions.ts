@@ -154,7 +154,7 @@ async function saveApplication(formData: FormData) {
   if (!category) {
     return {
       error: formError("Проверьте отмеченные поля и попробуйте снова.", {
-        categoryId: applicationFieldErrorMessages.categoryId
+        categoryId: "Выбранный тип организации не найден или отключен. Выберите тип организации заново."
       })
     };
   }

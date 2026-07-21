@@ -108,6 +108,7 @@ export function OrganizationApplicationForm({
   readOnly
 }: OrganizationApplicationFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(application?.category_id ?? "");
   const [clientState, setClientState] = useState<ApplicationFormState>(initialApplicationFormState);
   const [hideServerFieldErrors, setHideServerFieldErrors] = useState(false);
   const [saveState, saveAction] = useActionState(
@@ -126,6 +127,7 @@ export function OrganizationApplicationForm({
   const currentState: ApplicationFormState = hasFieldErrors(clientFieldErrors)
     ? clientState
     : { ...visibleServerState, fieldErrors: currentFieldErrors };
+  const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
 
   function validateCurrentForm() {
     if (!formRef.current) {
@@ -203,7 +205,8 @@ export function OrganizationApplicationForm({
             required
             aria-invalid={Boolean(currentState.fieldErrors?.categoryId)}
             aria-describedby={currentState.fieldErrors?.categoryId ? "categoryId-error" : "categoryId-hint"}
-            defaultValue={application?.category_id ?? ""}
+            value={selectedCategoryId}
+            onChange={(event) => setSelectedCategoryId(event.currentTarget.value)}
           >
             <option value="" disabled>
               Выберите категорию
@@ -214,6 +217,9 @@ export function OrganizationApplicationForm({
               </option>
             ))}
           </Select>
+          {selectedCategory ? (
+            <p className="text-sm leading-5 text-success">Выбрано: {selectedCategory.name}</p>
+          ) : null}
         </FormField>
         <FormField
           id="description"
