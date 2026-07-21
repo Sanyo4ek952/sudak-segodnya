@@ -130,7 +130,7 @@
 
 Связи:
 
-- `organizations.category_id` ссылается на категорию.
+- `organizations.category_id` ссылается на основную категорию организации.
 
 Статусы:
 
@@ -153,7 +153,7 @@
 Поля:
 
 - `id uuid primary key` — обязательно;
-- `category_id uuid references organization_categories(id)` — обязательно;
+- `category_id uuid references organization_categories(id)` — основная категория организации, обязательно;
 - `slug text unique` — обязательно;
 - `name text` — обязательно;
 - `description text` — обязательно для публичной активной организации;
@@ -244,7 +244,7 @@
 - `applicant_id uuid references auth.users(id)` — обязательно;
 - `status organization_application_status default 'draft'` — обязательно;
 - `organization_name text` — обязательно при отправке;
-- `category_id uuid references organization_categories(id)` — обязательно при отправке;
+- `category_id uuid references organization_categories(id)` — основная категория будущей организации, обязательно при отправке;
 - `description text` — необязательно;
 - `address text` — необязательно;
 - `phone text` — необязательно;

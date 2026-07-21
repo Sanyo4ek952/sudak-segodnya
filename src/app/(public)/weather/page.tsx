@@ -96,8 +96,18 @@ export default async function WeatherPage() {
         title="Погода"
         description="Актуальный прогноз для Судака. Данные обновляются примерно раз в 30 минут."
         action={
-          <LinkButton href={forecast?.yandexUrl ?? YANDEX_SUDAK_WEATHER_URL} target="_blank" rel="noreferrer" variant="outline" size="sm">
-            Открыть в Яндекс Погоде
+          <LinkButton
+            href={forecast?.yandexUrl ?? YANDEX_SUDAK_WEATHER_URL}
+            target="_blank"
+            rel="noreferrer"
+            variant="primary"
+            size="sm"
+            className="whitespace-nowrap !rounded-full border border-[#c8c8c8] bg-white font-semibold text-black shadow-[0_6px_18px_rgba(0,0,0,0.14)] hover:bg-white hover:opacity-100"
+          >
+            <span className="inline-flex size-5 items-center justify-center rounded-md border border-[#e5e5e5] bg-white text-sm font-bold text-[#fc3f1d] shadow-[0_2px_6px_rgba(0,0,0,0.12)]">
+              Я
+            </span>
+            Погода на Яндексе
           </LinkButton>
         }
       />
