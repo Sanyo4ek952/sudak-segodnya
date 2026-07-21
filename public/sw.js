@@ -1,7 +1,6 @@
-const VERSION = "2026-07-20-1";
+const VERSION = "2026-07-22-1";
 const STATIC_CACHE = `sudak-today-static-${VERSION}`;
-const PAGE_CACHE = `sudak-today-pages-${VERSION}`;
-const ALLOWED_CACHES = new Set([STATIC_CACHE, PAGE_CACHE]);
+const ALLOWED_CACHES = new Set([STATIC_CACHE]);
 
 const OFFLINE_URL = "/offline";
 const STATIC_ASSETS = [
@@ -91,24 +90,10 @@ async function cacheStaticAsset(request) {
   return response;
 }
 
-async function cachePublicNavigation(request) {
-  const cache = await caches.open(PAGE_CACHE);
-
+async function fetchPublicNavigation(request) {
   try {
-    const response = await fetch(request);
-
-    if (response.ok && response.type === "basic" && !hasPrivateResponseSignals(response)) {
-      await cache.put(request, response.clone());
-    }
-
-    return response;
+    return await fetch(request);
   } catch {
-    const cached = await cache.match(request);
-
-    if (cached) {
-      return cached;
-    }
-
     return (await caches.match(OFFLINE_URL)) || Response.error();
   }
 }
@@ -150,6 +135,6 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (isPublicNavigation(request, url)) {
-    event.respondWith(cachePublicNavigation(request));
+    event.respondWith(fetchPublicNavigation(request));
   }
 });
