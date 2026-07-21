@@ -2,13 +2,14 @@ import { createSupabaseServerClient } from "@/shared/api/supabase/server";
 import type { Database, Tables } from "@/shared/api/supabase/database.types";
 import type {
   Organization,
-  OrganizationCategory,
+  OrganizationType,
   OrganizationService
 } from "@/entities/organization/model/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type OrganizationRow = Tables<"organizations"> & {
-  organization_categories: Pick<Tables<"organization_categories">, "slug" | "name"> | null;
+  organization_types: Pick<Tables<"organization_types">, "slug" | "name"> | null;
+  media_assets: Array<Pick<Tables<"media_assets">, "bucket_id" | "storage_path" | "purpose" | "sort_order">>;
 };
 
 type MenuItemRow = Pick<
@@ -16,34 +17,35 @@ type MenuItemRow = Pick<
   "id" | "title" | "description" | "price_text" | "is_available" | "sort_order"
 >;
 
-const organizationSelect = "*, organization_categories(slug, name)";
+const organizationSelect = "*, organization_types(slug, name), media_assets(bucket_id, storage_path, purpose, sort_order)";
 
-function isOrganizationCategory(value: string | null | undefined): value is OrganizationCategory {
+function isOrganizationType(value: string | null | undefined): value is OrganizationType {
   return (
     value === "food" ||
     value === "delivery" ||
     value === "kids" ||
     value === "culture" ||
     value === "excursions" ||
-    value === "rental" ||
+    value === "rental_entertainment" ||
     value === "shops" ||
-    value === "services"
+    value === "services" ||
+    value === "administration"
   );
 }
 
 async function getImageUrl(
   supabase: SupabaseClient<Database>,
-  path: string | null
+  asset: Pick<Tables<"media_assets">, "bucket_id" | "storage_path"> | undefined
 ) {
-  if (!path) {
+  if (!asset) {
     return undefined;
   }
 
-  if (path.startsWith("http://") || path.startsWith("https://")) {
-    return path;
+  if (asset.storage_path.startsWith("http://") || asset.storage_path.startsWith("https://")) {
+    return asset.storage_path;
   }
 
-  const { data, error } = await supabase.storage.from("organization-images").createSignedUrl(path, 60 * 10);
+  const { data, error } = await supabase.storage.from(asset.bucket_id).createSignedUrl(asset.storage_path, 60 * 10);
 
   if (error) {
     return undefined;
@@ -58,19 +60,26 @@ async function mapOrganization(
   services: OrganizationService[] = [],
   activePublicationIds: string[] = []
 ): Promise<Organization> {
+  const sortedAssets = row.media_assets
+    .slice()
+    .filter((asset) => asset.storage_path)
+    .sort((a, b) => a.sort_order - b.sort_order);
+  const logo = sortedAssets.find((asset) => asset.purpose === "organization_logo");
+  const cover = sortedAssets.find((asset) => asset.purpose === "organization_cover");
+
   return {
     id: row.id,
     slug: row.slug,
     name: row.name,
-    category: isOrganizationCategory(row.organization_categories?.slug)
-      ? row.organization_categories.slug
+    type: isOrganizationType(row.organization_types?.slug)
+      ? row.organization_types.slug
       : "services",
     description: row.description ?? "",
     address: row.address ?? "Судак",
     phone: row.phone ?? "",
     workingHours: row.working_hours ?? "Уточняйте у организации",
-    logo: await getImageUrl(supabase, row.logo_path),
-    cover: await getImageUrl(supabase, row.cover_path),
+    logo: await getImageUrl(supabase, logo),
+    cover: await getImageUrl(supabase, cover),
     services,
     activePublicationIds,
     updatedAt: row.last_public_update_at ?? row.updated_at

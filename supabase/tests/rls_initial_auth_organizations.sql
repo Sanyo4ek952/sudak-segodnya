@@ -54,7 +54,7 @@ select ok(
   'auth user trigger creates a user profile'
 );
 
-insert into public.organization_categories (id, slug, name, sort_order)
+insert into public.organization_types (id, slug, name, sort_order)
 values
   ('30000000-0000-0000-0000-000000000001', 'food', 'Food', 10),
   ('30000000-0000-0000-0000-000000000008', 'services', 'Services', 80)
@@ -63,11 +63,11 @@ set name = excluded.name,
     sort_order = excluded.sort_order,
     is_active = true;
 
-insert into public.organizations (id, slug, name, status, category_id, created_by)
+insert into public.organizations (id, slug, name, description, phone, status, type_id, created_by)
 values
-  ('10000000-0000-0000-0000-000000000001', 'active-org', 'Active Org', 'active', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000003'),
-  ('10000000-0000-0000-0000-000000000002', 'pending-org', 'Pending Org', 'pending', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000003'),
-  ('10000000-0000-0000-0000-000000000003', 'member-org', 'Member Org', 'pending', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000003');
+  ('10000000-0000-0000-0000-000000000001', 'active-org', 'Active Org', 'Description', 'Phone', 'active', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000003'),
+  ('10000000-0000-0000-0000-000000000002', 'pending-org', 'Pending Org', 'Description', 'Phone', 'pending', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000003'),
+  ('10000000-0000-0000-0000-000000000003', 'member-org', 'Member Org', 'Description', 'Phone', 'pending', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000003');
 
 insert into public.organization_members (organization_id, user_id, role)
 values
@@ -79,7 +79,7 @@ insert into public.organization_applications (
   applicant_id,
   status,
   organization_name,
-  category_id,
+  type_id,
   description,
   address,
   phone,
@@ -133,7 +133,7 @@ select ok(
     $$ insert into public.organization_applications (
          applicant_id,
          organization_name,
-         category_id,
+         type_id,
          description,
          address,
          phone,
@@ -216,7 +216,7 @@ select ok(
     $$ insert into public.organization_applications (
          applicant_id,
          organization_name,
-         category_id,
+         type_id,
          description,
          address,
          phone,
@@ -546,9 +546,9 @@ select is(
 select ok(
   (
     select array_agg(slug order by slug) @> array['food'::text, 'services'::text]
-    from public.organization_categories
+    from public.organization_types
   ),
-  'public user sees active organization categories'
+  'public user sees active organization types'
 );
 
 select * from finish();

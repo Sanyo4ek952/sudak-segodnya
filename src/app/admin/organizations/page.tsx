@@ -89,7 +89,7 @@ export default async function AdminOrganizationsPage({ searchParams }: AdminOrga
                       {organization.name}
                     </Link>
                     <p className="text-sm leading-6 text-foreground-muted">
-                      {organization.organization_categories?.name ?? "Категория не указана"}
+                      {organization.organization_types?.name ?? "Тип не указан"}
                     </p>
                   </div>
                   <Badge variant={statusVariant(organization.status)}>

@@ -1,12 +1,13 @@
-export type OrganizationCategory =
+export type OrganizationType =
   | "food"
   | "delivery"
   | "kids"
   | "culture"
   | "excursions"
-  | "rental"
+  | "rental_entertainment"
   | "shops"
-  | "services";
+  | "services"
+  | "administration";
 
 export type OrganizationService = {
   id: string;
@@ -20,7 +21,7 @@ export type Organization = {
   id: string;
   slug: string;
   name: string;
-  category: OrganizationCategory;
+  type: OrganizationType;
   description: string;
   address: string;
   phone: string;
@@ -32,13 +33,14 @@ export type Organization = {
   updatedAt: string;
 };
 
-export const organizationCategoryLabels: Record<OrganizationCategory, string> = {
-  food: "Еда",
+export const organizationTypeLabels: Record<OrganizationType, string> = {
+  food: "Рестораны и кафе",
   delivery: "Доставка",
-  kids: "Детям",
+  kids: "Кружки и секции",
   culture: "Культура",
   excursions: "Экскурсии",
-  rental: "Прокат",
+  rental_entertainment: "Прокат и развлечения",
   shops: "Магазины",
-  services: "Услуги"
+  services: "Услуги",
+  administration: "Администрация"
 };

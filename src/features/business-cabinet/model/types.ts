@@ -30,7 +30,7 @@ export const businessPublicationTypeLabels = {
 } satisfies Record<Tables<"publications">["type"], string>;
 
 export type BusinessOrganization = Tables<"organizations"> & {
-  organization_categories: Pick<Tables<"organization_categories">, "id" | "name" | "slug"> | null;
+  organization_types: Pick<Tables<"organization_types">, "id" | "name" | "slug"> | null;
 };
 
 export type BusinessMembership = Tables<"organization_members"> & {
@@ -38,6 +38,7 @@ export type BusinessMembership = Tables<"organization_members"> & {
 };
 
 export type BusinessPublication = Tables<"publications"> & {
+  publication_categories: Pick<Tables<"publication_categories">, "id" | "name" | "slug"> | null;
   publication_schedules: Array<Pick<Tables<"publication_schedules">, "id" | "schedule_text" | "sort_order">>;
 };
 

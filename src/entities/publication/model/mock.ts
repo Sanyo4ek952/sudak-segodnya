@@ -134,7 +134,7 @@ export const publications: Publication[] = [
     place: "центр и набережная",
     priceText: "доставка бесплатно",
     isFree: true,
-    category: "delivery",
+    category: "food",
     updatedAt: "2026-07-18T11:20:00+03:00"
   },
   {

@@ -32,7 +32,7 @@ export type AdminPublicationListItem = Tables<"publications"> & {
 };
 
 export type AdminOrganizationListItem = Tables<"organizations"> & {
-  organization_categories: Pick<Tables<"organization_categories">, "id" | "name" | "slug"> | null;
+  organization_types: Pick<Tables<"organization_types">, "id" | "name" | "slug"> | null;
 };
 
 export type AdminReportListItem = Tables<"inaccuracy_reports"> & {

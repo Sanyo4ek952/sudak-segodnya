@@ -31,7 +31,7 @@ const publicationSchema = z.object({
   type: z.enum(["event", "announcement", "promo", "regular", "news"]),
   title: z.string().trim().min(3).max(180),
   description: z.string().trim().min(10).max(4000),
-  categorySlug: z.string().trim().min(2).max(60),
+  categoryId: uuidSchema,
   startsAt: z.string().optional(),
   endsAt: z.string().optional(),
   validUntil: z.string().optional(),
@@ -160,11 +160,22 @@ export async function getBusinessOrganization(organizationId: string) {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("organizations")
-    .select("*, organization_categories(id, name, slug)")
+    .select("*, organization_types(id, name, slug)")
     .eq("id", organizationId)
     .maybeSingle();
 
   return data as BusinessOrganization | null;
+}
+
+export async function getPublicationCategories() {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("publication_categories")
+    .select("id, slug, name, description, sort_order, is_active, created_at, updated_at")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+
+  return data ?? [];
 }
 
 export async function getBusinessOverview(organizationId: string) {
@@ -271,7 +282,7 @@ export async function getBusinessPublications(organizationId: string) {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("publications")
-    .select("*, publication_schedules(id, schedule_text, sort_order)")
+    .select("*, publication_categories(id, name, slug), publication_schedules(id, schedule_text, sort_order)")
     .eq("organization_id", organizationId)
     .order("updated_at", { ascending: false });
 
@@ -289,7 +300,7 @@ export async function getBusinessPublication(organizationId: string, publication
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("publications")
-    .select("*, publication_schedules(id, schedule_text, sort_order)")
+    .select("*, publication_categories(id, name, slug), publication_schedules(id, schedule_text, sort_order)")
     .eq("organization_id", organizationId)
     .eq("id", parsedPublicationId.data)
     .maybeSingle();
@@ -385,7 +396,7 @@ export async function savePublicationAction(
     type: getString(formData, "type"),
     title: getString(formData, "title"),
     description: getString(formData, "description"),
-    categorySlug: getString(formData, "categorySlug"),
+    categoryId: getString(formData, "categoryId"),
     startsAt: getString(formData, "startsAt"),
     endsAt: getString(formData, "endsAt"),
     validUntil: getString(formData, "validUntil"),
@@ -410,6 +421,17 @@ export async function savePublicationAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const { data: category } = await supabase
+    .from("publication_categories")
+    .select("id")
+    .eq("id", parsed.data.categoryId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!category) {
+    return actionError("Выбранная категория ленты не найдена.");
+  }
+
   const payload = {
     organization_id: parsed.data.organizationId,
     author_id: userId,
@@ -417,7 +439,7 @@ export async function savePublicationAction(
     status: parsed.data.status,
     title: parsed.data.title,
     description: parsed.data.description,
-    category_slug: parsed.data.categorySlug,
+    category_id: parsed.data.categoryId,
     starts_at: toDateTime(parsed.data.startsAt),
     ends_at: toDateTime(parsed.data.endsAt),
     valid_until: toDateTime(parsed.data.validUntil),

@@ -3,7 +3,7 @@
 import { type FormEvent, useActionState, useEffect, useRef, useState } from "react";
 import type {
   OrganizationApplication,
-  OrganizationCategory
+  OrganizationType
 } from "@/entities/organization-application/model/types";
 import {
   saveOrganizationApplicationDraftAction,
@@ -32,6 +32,20 @@ const fieldOrder: ApplicationFieldName[] = [
   "relationship",
   "confirmationInfo"
 ];
+
+type ApplicationFormValues = Record<ApplicationFieldName, string>;
+
+function getInitialFormValues(application: OrganizationApplication | null): ApplicationFormValues {
+  return {
+    organizationName: application?.organization_name ?? "",
+    categoryId: application?.type_id ?? "",
+    description: application?.description ?? "",
+    address: application?.address ?? "",
+    phone: application?.phone ?? "",
+    relationship: application?.relationship ?? "",
+    confirmationInfo: application?.confirmation_info ?? ""
+  };
+}
 
 function getFormValue(formData: FormData, fieldName: ApplicationFieldName) {
   const value = formData.get(fieldName);
@@ -78,6 +92,20 @@ function hasFieldErrors(fieldErrors?: Partial<Record<ApplicationFieldName, strin
   return Boolean(fieldErrors && Object.keys(fieldErrors).length > 0);
 }
 
+function hasFieldError(
+  fieldErrors: Partial<Record<ApplicationFieldName, string>> | undefined,
+  fieldName: ApplicationFieldName
+) {
+  return Boolean(fieldErrors?.[fieldName]);
+}
+
+function removeFieldError(
+  fieldErrors: Partial<Record<ApplicationFieldName, string>> | undefined,
+  fieldName: ApplicationFieldName
+) {
+  return mergeFieldError(fieldErrors, fieldName, null);
+}
+
 function errorState(fieldErrors: Partial<Record<ApplicationFieldName, string>>): ApplicationFormState {
   return {
     status: "error",
@@ -114,7 +142,7 @@ function focusFirstError(fieldErrors?: Partial<Record<ApplicationFieldName, stri
 
 type OrganizationApplicationFormProps = {
   application: OrganizationApplication | null;
-  categories: OrganizationCategory[];
+  categories: OrganizationType[];
   readOnly: boolean;
 };
 
@@ -124,7 +152,7 @@ export function OrganizationApplicationForm({
   readOnly
 }: OrganizationApplicationFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(application?.category_id ?? "");
+  const [formValues, setFormValues] = useState<ApplicationFormValues>(() => getInitialFormValues(application));
   const [clientState, setClientState] = useState<ApplicationFormState>(initialApplicationFormState);
   const [hideServerFieldErrors, setHideServerFieldErrors] = useState(false);
   const [touchedFields, setTouchedFields] = useState<Partial<Record<ApplicationFieldName, boolean>>>({});
@@ -140,11 +168,20 @@ export function OrganizationApplicationForm({
   const visibleServerState = hideServerFieldErrors ? initialApplicationFormState : serverState;
   const serverFieldErrors = visibleServerState.fieldErrors;
   const clientFieldErrors = clientState.fieldErrors;
-  const currentFieldErrors = hasFieldErrors(clientFieldErrors) ? clientFieldErrors : serverFieldErrors;
-  const currentState: ApplicationFormState = hasFieldErrors(clientFieldErrors)
-    ? clientState
-    : { ...visibleServerState, fieldErrors: currentFieldErrors };
-  const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
+  const selectedCategory = categories.find((category) => category.id === formValues.categoryId);
+  const activeState = hasFieldErrors(clientFieldErrors) ? clientState : visibleServerState;
+  const rawFieldErrors = activeState.fieldErrors;
+  const currentFieldErrors = selectedCategory
+    ? removeFieldError(rawFieldErrors, "categoryId")
+    : rawFieldErrors;
+  const currentState: ApplicationFormState =
+    activeState.fieldErrors && !hasFieldErrors(currentFieldErrors)
+      ? initialApplicationFormState
+      : { ...activeState, fieldErrors: currentFieldErrors };
+
+  function updateFieldValue(fieldName: ApplicationFieldName, value: string) {
+    setFormValues((current) => ({ ...current, [fieldName]: value }));
+  }
 
   function showFieldError(fieldName: ApplicationFieldName, value: string) {
     const fieldErrors = mergeFieldError(
@@ -158,7 +195,11 @@ export function OrganizationApplicationForm({
   }
 
   function clearFieldErrorIfValid(fieldName: ApplicationFieldName, value: string) {
-    if (!touchedFields[fieldName] && !clientState.fieldErrors?.[fieldName]) {
+    if (
+      !touchedFields[fieldName] &&
+      !hasFieldError(clientState.fieldErrors, fieldName) &&
+      !hasFieldError(serverFieldErrors, fieldName)
+    ) {
       return;
     }
 
@@ -169,6 +210,16 @@ export function OrganizationApplicationForm({
     }
 
     const fieldErrors = mergeFieldError(clientState.fieldErrors, fieldName, null);
+    setHideServerFieldErrors(true);
+    setClientState(hasFieldErrors(fieldErrors) ? errorState(fieldErrors) : initialApplicationFormState);
+  }
+
+  function handleCategoryChange(value: string) {
+    const fieldErrors = removeFieldError(clientState.fieldErrors, "categoryId");
+
+    updateFieldValue("categoryId", value);
+    setHideServerFieldErrors(true);
+    setTouchedFields((current) => ({ ...current, categoryId: true }));
     setClientState(hasFieldErrors(fieldErrors) ? errorState(fieldErrors) : initialApplicationFormState);
   }
 
@@ -218,9 +269,13 @@ export function OrganizationApplicationForm({
             maxLength={applicationFieldValidationRules.organizationName.maxLength}
             aria-invalid={Boolean(currentState.fieldErrors?.organizationName)}
             aria-describedby={currentState.fieldErrors?.organizationName ? "organizationName-error" : undefined}
-            defaultValue={application?.organization_name ?? ""}
+            value={formValues.organizationName}
             onBlur={(event) => showFieldError("organizationName", event.currentTarget.value)}
-            onChange={(event) => clearFieldErrorIfValid("organizationName", event.currentTarget.value)}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              updateFieldValue("organizationName", value);
+              clearFieldErrorIfValid("organizationName", value);
+            }}
           />
         </FormField>
         <FormField
@@ -235,12 +290,11 @@ export function OrganizationApplicationForm({
             required
             aria-invalid={Boolean(currentState.fieldErrors?.categoryId)}
             aria-describedby={currentState.fieldErrors?.categoryId ? "categoryId-error" : "categoryId-hint"}
-            value={selectedCategoryId}
+            value={formValues.categoryId}
             onBlur={(event) => showFieldError("categoryId", event.currentTarget.value)}
             onChange={(event) => {
               const value = event.currentTarget.value;
-              setSelectedCategoryId(value);
-              clearFieldErrorIfValid("categoryId", value);
+              handleCategoryChange(value);
             }}
           >
             <option value="" disabled>
@@ -269,9 +323,13 @@ export function OrganizationApplicationForm({
             maxLength={applicationFieldValidationRules.description.maxLength}
             aria-invalid={Boolean(currentState.fieldErrors?.description)}
             aria-describedby={currentState.fieldErrors?.description ? "description-error" : undefined}
-            defaultValue={application?.description ?? ""}
+            value={formValues.description}
             onBlur={(event) => showFieldError("description", event.currentTarget.value)}
-            onChange={(event) => clearFieldErrorIfValid("description", event.currentTarget.value)}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              updateFieldValue("description", value);
+              clearFieldErrorIfValid("description", value);
+            }}
           />
         </FormField>
         <FormField id="address" label="Адрес" error={currentState.fieldErrors?.address}>
@@ -283,9 +341,13 @@ export function OrganizationApplicationForm({
             maxLength={applicationFieldValidationRules.address.maxLength}
             aria-invalid={Boolean(currentState.fieldErrors?.address)}
             aria-describedby={currentState.fieldErrors?.address ? "address-error" : undefined}
-            defaultValue={application?.address ?? ""}
+            value={formValues.address}
             onBlur={(event) => showFieldError("address", event.currentTarget.value)}
-            onChange={(event) => clearFieldErrorIfValid("address", event.currentTarget.value)}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              updateFieldValue("address", value);
+              clearFieldErrorIfValid("address", value);
+            }}
           />
         </FormField>
         <FormField id="phone" label="Контактный телефон" error={currentState.fieldErrors?.phone}>
@@ -297,9 +359,13 @@ export function OrganizationApplicationForm({
             maxLength={applicationFieldValidationRules.phone.maxLength}
             aria-invalid={Boolean(currentState.fieldErrors?.phone)}
             aria-describedby={currentState.fieldErrors?.phone ? "phone-error" : undefined}
-            defaultValue={application?.phone ?? ""}
+            value={formValues.phone}
             onBlur={(event) => showFieldError("phone", event.currentTarget.value)}
-            onChange={(event) => clearFieldErrorIfValid("phone", event.currentTarget.value)}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              updateFieldValue("phone", value);
+              clearFieldErrorIfValid("phone", value);
+            }}
           />
         </FormField>
         <FormField
@@ -316,9 +382,13 @@ export function OrganizationApplicationForm({
             maxLength={applicationFieldValidationRules.relationship.maxLength}
             aria-invalid={Boolean(currentState.fieldErrors?.relationship)}
             aria-describedby={currentState.fieldErrors?.relationship ? "relationship-error" : "relationship-hint"}
-            defaultValue={application?.relationship ?? ""}
+            value={formValues.relationship}
             onBlur={(event) => showFieldError("relationship", event.currentTarget.value)}
-            onChange={(event) => clearFieldErrorIfValid("relationship", event.currentTarget.value)}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              updateFieldValue("relationship", value);
+              clearFieldErrorIfValid("relationship", value);
+            }}
           />
         </FormField>
         <FormField
@@ -335,9 +405,13 @@ export function OrganizationApplicationForm({
             aria-describedby={
               currentState.fieldErrors?.confirmationInfo ? "confirmationInfo-error" : "confirmationInfo-hint"
             }
-            defaultValue={application?.confirmation_info ?? ""}
+            value={formValues.confirmationInfo}
             onBlur={(event) => showFieldError("confirmationInfo", event.currentTarget.value)}
-            onChange={(event) => clearFieldErrorIfValid("confirmationInfo", event.currentTarget.value)}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              updateFieldValue("confirmationInfo", value);
+              clearFieldErrorIfValid("confirmationInfo", value);
+            }}
           />
         </FormField>
       </fieldset>

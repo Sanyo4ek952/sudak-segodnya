@@ -12,10 +12,14 @@ import {
   type ApplicationFormState
 } from "@/features/organization-application/model/types";
 
+const postgresUuidSchema = z.string().trim().regex(
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+);
+
 const applicationSchema = z.object({
-  applicationId: z.string().uuid().optional().or(z.literal("")),
+  applicationId: postgresUuidSchema.optional().or(z.literal("")),
   organizationName: z.string().trim().min(2).max(160),
-  categoryId: z.string().uuid(),
+  categoryId: postgresUuidSchema,
   description: z.string().trim().min(10).max(2000),
   address: z.string().trim().min(3).max(300),
   phone: z.string().trim().min(5).max(80),
@@ -48,6 +52,34 @@ function formError(
     message,
     fieldErrors
   } satisfies ApplicationFormState;
+}
+
+function logApplicationActionError(context: string, error: unknown) {
+  if (!error || typeof error !== "object") {
+    console.error(`[organization-application] ${context}`, error);
+    return;
+  }
+
+  const details = error as {
+    code?: string;
+    message?: string;
+    details?: string;
+    hint?: string;
+  };
+
+  console.error(`[organization-application] ${context}`, {
+    code: details.code,
+    message: details.message,
+    details: details.details,
+    hint: details.hint
+  });
+}
+
+function isDuplicateApplicationError(error: { code?: string; message?: string } | null) {
+  return (
+    error?.code === "23505" ||
+    Boolean(error?.message?.includes("organization_applications_one_active_name_idx"))
+  );
 }
 
 function validationError(error: z.ZodError): ApplicationFormState {
@@ -110,10 +142,10 @@ export async function getCurrentBusinessState(): Promise<BusinessState | null> {
   };
 }
 
-export async function getOrganizationCategories() {
+export async function getOrganizationTypes() {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
-    .from("organization_categories")
+    .from("organization_types")
     .select("id, slug, name, description, sort_order, is_active, created_at, updated_at")
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
@@ -145,7 +177,7 @@ async function saveApplication(formData: FormData) {
   }
 
   const { data: category } = await supabase
-    .from("organization_categories")
+    .from("organization_types")
     .select("id, name")
     .eq("id", parsed.data.categoryId)
     .eq("is_active", true)
@@ -161,8 +193,7 @@ async function saveApplication(formData: FormData) {
 
   const payload = {
     organization_name: parsed.data.organizationName,
-    category_id: parsed.data.categoryId,
-    category_name: category.name,
+    type_id: parsed.data.categoryId,
     description: parsed.data.description,
     address: parsed.data.address,
     phone: parsed.data.phone,
@@ -190,6 +221,7 @@ async function saveApplication(formData: FormData) {
       .single();
 
     if (error) {
+      logApplicationActionError("update failed", error);
       return { error: formError("Не получилось сохранить заявку.") };
     }
 
@@ -207,6 +239,19 @@ async function saveApplication(formData: FormData) {
     .single();
 
   if (error) {
+    logApplicationActionError("insert failed", error);
+
+    if (isDuplicateApplicationError(error)) {
+      return {
+        error: formError(
+          "У вас уже есть активная заявка с таким названием организации. Откройте существующую заявку или измените название.",
+          {
+            organizationName: "Активная заявка с таким названием уже существует."
+          }
+        )
+      };
+    }
+
     return { error: formError("Не получилось создать заявку. Возможно, такая активная заявка уже есть.") };
   }
 
@@ -248,6 +293,8 @@ export async function submitOrganizationApplicationAction(
   });
 
   if (error) {
+    logApplicationActionError("submit rpc failed", error);
+
     return formError(
       "Не получилось отправить заявку. Проверьте обязательные поля или сохраните черновик и попробуйте снова."
     );
@@ -255,5 +302,7 @@ export async function submitOrganizationApplicationAction(
 
   revalidatePath("/business");
   revalidatePath("/business/application");
-  redirect("/business");
+  revalidatePath("/admin");
+  revalidatePath("/admin/applications");
+  redirect("/business?application=submitted");
 }

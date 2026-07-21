@@ -1,7 +1,15 @@
-import type { OrganizationCategory } from "@/entities/organization/model/types";
-
 export type PublicationType = "event" | "announcement" | "promo" | "regular" | "news";
 export type PublicationStatus = "published" | "cancelled" | "completed";
+export type PublicationCategory =
+  | "city"
+  | "kids"
+  | "food"
+  | "culture"
+  | "sport"
+  | "excursions"
+  | "rental"
+  | "shops"
+  | "services";
 export type PublicationFilter =
   | "all"
   | "today"
@@ -33,7 +41,7 @@ export type Publication = {
   place: string;
   priceText: string;
   isFree: boolean;
-  category: OrganizationCategory | "sport";
+  category: PublicationCategory;
   image?: string;
   contactPhone?: string;
   ageLimit?: string;
@@ -58,4 +66,16 @@ export const publicationFilterLabels: Record<PublicationFilter, string> = {
   culture: "культура",
   sport: "спорт и кружки",
   free: "бесплатно"
+};
+
+export const publicationCategoryLabels: Record<PublicationCategory, string> = {
+  city: "город",
+  kids: "детям",
+  food: "еда",
+  culture: "культура",
+  sport: "спорт и кружки",
+  excursions: "экскурсии",
+  rental: "прокат",
+  shops: "магазины",
+  services: "услуги"
 };

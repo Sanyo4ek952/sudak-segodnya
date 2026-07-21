@@ -108,7 +108,7 @@ export async function getAdminApplications({
   let query = supabase
     .from("organization_applications")
     .select(
-      "*, organization_categories(id, name, slug), organizations(id, name, slug, status)",
+      "*, organization_types(id, name, slug), organizations(id, name, slug, status)",
       { count: "exact" }
     )
     .order("submitted_at", { ascending: false, nullsFirst: false })
@@ -146,7 +146,7 @@ export async function getAdminApplication(id: string) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("organization_applications")
-    .select("*, organization_categories(id, name, slug), organizations(id, name, slug, status)")
+    .select("*, organization_types(id, name, slug), organizations(id, name, slug, status)")
     .eq("id", parsedId.data)
     .maybeSingle();
 
