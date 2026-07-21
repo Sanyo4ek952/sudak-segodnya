@@ -48,7 +48,7 @@ const applicationFieldErrorMessages: Record<string, string> = {
 function formError(
   message = "Проверьте отмеченные поля и попробуйте снова.",
   fieldErrors?: Record<string, string>
-) {
+): ApplicationFormState {
   return {
     status: "error",
     message,
@@ -56,7 +56,7 @@ function formError(
   } satisfies ApplicationFormState;
 }
 
-function validationError(error: z.ZodError) {
+function validationError(error: z.ZodError): ApplicationFormState {
   const fieldErrors: Record<string, string> = {};
 
   for (const issue of error.issues) {
@@ -217,7 +217,7 @@ async function saveApplication(formData: FormData) {
 export async function saveOrganizationApplicationDraftAction(
   _state: ApplicationFormState,
   formData: FormData
-) {
+): Promise<ApplicationFormState> {
   const result = await saveApplication(formData);
 
   if (result.error) {
@@ -236,7 +236,7 @@ export async function saveOrganizationApplicationDraftAction(
 export async function submitOrganizationApplicationAction(
   _state: ApplicationFormState,
   formData: FormData
-) {
+): Promise<ApplicationFormState> {
   const result = await saveApplication(formData);
 
   if (result.error) {
