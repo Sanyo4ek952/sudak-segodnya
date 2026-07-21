@@ -212,6 +212,8 @@
 - не использовать service role key в клиентском коде.
 ## Этап PWA. Установка и безопасный offline-режим
 
+Статус: выполнено 2026-07-21. Подтверждена ранее добавленная реализация PWA: manifest, временные иконки, production-only service worker, безопасный offline fallback, страница `/offline` внутри общего `AppShell`, install/update UI и правила PWA в `docs/PWA.md`. Новые миграции не требуются: этап не меняет Supabase-схему, RLS, auth-flow и бизнес-логику.
+
 Цель: превратить mobile-first веб-приложение в устанавливаемую PWA без изменения Supabase-схемы, RLS, auth-flow и бизнес-логики.
 
 Работы:
