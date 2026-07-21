@@ -16,6 +16,18 @@ exception when others then
 end;
 $$;
 
+delete from public.inaccuracy_reports where reporter_fingerprint like 'seed-%';
+delete from public.important_announcements where created_by = '00000000-0000-0000-0000-000000000101';
+delete from public.publication_schedules
+where publication_id in (
+  select id from public.publications where author_id = '00000000-0000-0000-0000-000000000101'
+);
+delete from public.publications where author_id = '00000000-0000-0000-0000-000000000101';
+delete from public.menu_items where organization_id::text like '21000000-%';
+delete from public.menu_categories where organization_id::text like '21000000-%';
+delete from public.organization_members where organization_id::text like '21000000-%';
+delete from public.organizations where id::text like '21000000-%';
+
 insert into auth.users (id, email)
 values
   ('00000000-0000-0000-0000-000000000001', 'user-one@example.test'),

@@ -5,6 +5,7 @@ import { Badge } from "@/shared/ui/badge";
 import { Button, LinkButton } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
+import { InaccuracyReportDialog } from "@/features/report-inaccuracy/ui/inaccuracy-report-dialog";
 import { FavoriteToggle } from "@/features/save-favorite/ui/favorite-toggle";
 import { getPublicPublicationBySlug } from "@/entities/publication/api/publications";
 import { publicationTypeLabels } from "@/entities/publication/model/types";
@@ -116,9 +117,7 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
         <details className="rounded-lg border border-border bg-surface p-4">
           <summary className="cursor-pointer text-sm font-medium">Дополнительно</summary>
           <div className="mt-3 border-t border-border pt-3">
-            <Button type="button" variant="ghost" disabled>
-              Сообщить о неточности
-            </Button>
+            <InaccuracyReportDialog publicationId={publication.id} />
           </div>
         </details>
       </section>

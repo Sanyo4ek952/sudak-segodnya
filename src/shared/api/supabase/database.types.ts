@@ -676,6 +676,28 @@ export type Database = {
         Args: { application_id: string }
         Returns: Json
       }
+      create_inaccuracy_report: {
+        Args: {
+          comment: string
+          publication_id: string
+          reason: string
+          reporter_fingerprint: string
+        }
+        Returns: {
+          admin_comment: string | null
+          comment: string | null
+          created_at: string
+          id: string
+          publication_id: string
+          reason: string
+          reporter_fingerprint: string | null
+          reporter_user_id: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: Database["public"]["Enums"]["inaccuracy_report_status"]
+          updated_at: string
+        }
+      }
       is_admin: { Args: never; Returns: boolean }
       is_org_member: { Args: { org_id: string }; Returns: boolean }
       is_org_owner: { Args: { org_id: string }; Returns: boolean }

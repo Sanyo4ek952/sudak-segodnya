@@ -7,7 +7,11 @@ import { SectionNavigation } from "@/widgets/app-shell/ui/section-navigation";
 
 const adminNavigationItems = [
   { label: "Обзор", href: "/admin", exact: true },
-  { label: "Заявки", href: "/admin/applications" }
+  { label: "Заявки", href: "/admin/applications" },
+  { label: "Публикации", href: "/admin/publications" },
+  { label: "Организации", href: "/admin/organizations" },
+  { label: "Неточности", href: "/admin/reports" },
+  { label: "Важные", href: "/admin/important-announcements" }
 ];
 
 export default async function AdminLayout({
