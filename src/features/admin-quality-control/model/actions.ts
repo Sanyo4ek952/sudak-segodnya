@@ -78,6 +78,54 @@ export async function getAdminQualitySummary() {
   };
 }
 
+export async function getAdminAnalyticsSummary() {
+  await assertAdmin();
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+
+  const supabase = await createSupabaseServerClient();
+  const [
+    { count: totalEvents },
+    { count: organizationViews },
+    { count: publicationViews },
+    { count: phoneClicks },
+    { count: routeClicks }
+  ] = await Promise.all([
+    supabase
+      .from("analytics_events")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", since.toISOString()),
+    supabase
+      .from("analytics_events")
+      .select("id", { count: "exact", head: true })
+      .eq("event_name", "organization_view")
+      .gte("created_at", since.toISOString()),
+    supabase
+      .from("analytics_events")
+      .select("id", { count: "exact", head: true })
+      .eq("event_name", "publication_view")
+      .gte("created_at", since.toISOString()),
+    supabase
+      .from("analytics_events")
+      .select("id", { count: "exact", head: true })
+      .eq("event_name", "phone_click")
+      .gte("created_at", since.toISOString()),
+    supabase
+      .from("analytics_events")
+      .select("id", { count: "exact", head: true })
+      .eq("event_name", "route_click")
+      .gte("created_at", since.toISOString())
+  ]);
+
+  return {
+    totalEvents: totalEvents ?? 0,
+    organizationViews: organizationViews ?? 0,
+    publicationViews: publicationViews ?? 0,
+    phoneClicks: phoneClicks ?? 0,
+    routeClicks: routeClicks ?? 0
+  };
+}
+
 export async function getAdminPublications({
   status,
   page

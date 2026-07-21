@@ -4,6 +4,9 @@ import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent } from "@/shared/ui/card";
 import { LinkButton } from "@/shared/ui/button";
 import { SectionHeader } from "@/shared/ui/section-header";
+import { AnalyticsActionListener } from "@/features/analytics/ui/analytics-action-listener";
+import { AnalyticsOnView } from "@/features/analytics/ui/analytics-on-view";
+import { AnalyticsPageView } from "@/features/analytics/ui/analytics-page-view";
 import { FavoriteToggle } from "@/features/save-favorite/ui/favorite-toggle";
 import { getPublicOrganizationBySlug } from "@/entities/organization/api/organizations";
 import { OrganizationImage } from "@/entities/organization/ui/organization-image";
@@ -33,6 +36,17 @@ export default async function OrganizationPage({ params }: OrganizationPageProps
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      <AnalyticsPageView
+        analytics={{
+          eventName: "organization_view",
+          organizationId: organization.id
+        }}
+      />
+      <AnalyticsActionListener
+        context={{
+          organizationId: organization.id
+        }}
+      />
       <Link href="/organizations" className="inline-flex min-h-10 items-center text-sm font-medium text-primary">
         Назад в каталог
       </Link>
@@ -49,7 +63,14 @@ export default async function OrganizationPage({ params }: OrganizationPageProps
             <p className="text-base leading-7 text-foreground-muted">{organization.description}</p>
           </div>
           <div className="flex items-center gap-3">
-            <FavoriteToggle id={organization.id} type="organization" label={organization.name} />
+            <FavoriteToggle
+              id={organization.id}
+              type="organization"
+              label={organization.name}
+              analytics={{
+                organizationId: organization.id
+              }}
+            />
             <span className="text-sm text-foreground-muted">Обновлено {formatDate(organization.updatedAt)}</span>
           </div>
         </div>
@@ -89,6 +110,12 @@ export default async function OrganizationPage({ params }: OrganizationPageProps
 
       {availableServices.length ? (
         <section className="space-y-4">
+          <AnalyticsOnView
+            analytics={{
+              eventName: "menu_open",
+              organizationId: organization.id
+            }}
+          />
           <SectionHeader title="Меню и услуги" />
           <div className="grid gap-3 sm:grid-cols-2">
             {availableServices.map((service) => (

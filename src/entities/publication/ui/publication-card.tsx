@@ -45,7 +45,15 @@ export function PublicationCard({ publication }: { publication: Publication }) {
             <Badge variant={statusVariant}>{getStatusLabel(publication)}</Badge>
             <Badge variant="muted">{publicationTypeLabels[publication.type]}</Badge>
           </div>
-          <FavoriteToggle id={publication.id} type="publication" label={publication.title} />
+          <FavoriteToggle
+            id={publication.id}
+            type="publication"
+            label={publication.title}
+            analytics={{
+              organizationId: publication.organization.id,
+              publicationId: publication.id
+            }}
+          />
         </div>
         <div className="space-y-2">
           <Link href={`/publications/${publication.slug}`} className="block">

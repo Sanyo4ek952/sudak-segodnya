@@ -5,6 +5,9 @@ import { Badge } from "@/shared/ui/badge";
 import { Button, LinkButton } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
+import { AnalyticsActionListener } from "@/features/analytics/ui/analytics-action-listener";
+import { AnalyticsLinkButton } from "@/features/analytics/ui/analytics-link-button";
+import { AnalyticsPageView } from "@/features/analytics/ui/analytics-page-view";
 import { InaccuracyReportDialog } from "@/features/report-inaccuracy/ui/inaccuracy-report-dialog";
 import { FavoriteToggle } from "@/features/save-favorite/ui/favorite-toggle";
 import { getPublicPublicationBySlug } from "@/entities/publication/api/publications";
@@ -38,6 +41,19 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
 
   return (
     <article className="mx-auto max-w-3xl space-y-6">
+      <AnalyticsPageView
+        analytics={{
+          eventName: "publication_view",
+          organizationId: publication.organization.id,
+          publicationId: publication.id
+        }}
+      />
+      <AnalyticsActionListener
+        context={{
+          organizationId: publication.organization.id,
+          publicationId: publication.id
+        }}
+      />
       <Link href="/" className="inline-flex min-h-10 items-center text-sm font-medium text-primary">
         Назад в ленту
       </Link>
@@ -71,7 +87,15 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
           <Link href={`/organizations/${publication.organization.slug}`} className="text-sm font-medium text-primary">
             {publication.organization.name}
           </Link>
-          <FavoriteToggle id={publication.id} type="publication" label={publication.title} />
+          <FavoriteToggle
+            id={publication.id}
+            type="publication"
+            label={publication.title}
+            analytics={{
+              organizationId: publication.organization.id,
+              publicationId: publication.id
+            }}
+          />
         </div>
       </header>
 
@@ -102,14 +126,19 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
         <SectionHeader title="Действия" />
         <div className="grid gap-3 sm:grid-cols-3">
           {contactPhoneHref ? <LinkButton href={contactPhoneHref}>Позвонить</LinkButton> : null}
-          <LinkButton
+          <AnalyticsLinkButton
             href={`https://yandex.ru/maps/?text=${encodeURIComponent(publication.place)}`}
             variant="outline"
             target="_blank"
             rel="noreferrer"
+            analytics={{
+              eventName: "route_click",
+              organizationId: publication.organization.id,
+              publicationId: publication.id
+            }}
           >
             Маршрут
-          </LinkButton>
+          </AnalyticsLinkButton>
           <Button type="button" variant="outline">
             Поделиться
           </Button>

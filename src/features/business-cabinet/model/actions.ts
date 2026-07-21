@@ -203,6 +203,64 @@ export async function getBusinessOverview(organizationId: string) {
   };
 }
 
+export async function getBusinessAnalyticsSummary(organizationId: string) {
+  const membership = await assertBusinessMembership(organizationId);
+
+  if (!membership) {
+    return null;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const [
+    { count: organizationViews },
+    { count: publicationViews },
+    { count: phoneClicks },
+    { count: routeClicks },
+    { count: menuOpens },
+    { count: favoriteAdds }
+  ] = await Promise.all([
+    supabase
+      .from("analytics_events")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("event_name", "organization_view"),
+    supabase
+      .from("analytics_events")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("event_name", "publication_view"),
+    supabase
+      .from("analytics_events")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("event_name", "phone_click"),
+    supabase
+      .from("analytics_events")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("event_name", "route_click"),
+    supabase
+      .from("analytics_events")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("event_name", "menu_open"),
+    supabase
+      .from("analytics_events")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("event_name", "favorite_add")
+  ]);
+
+  return {
+    organizationViews: organizationViews ?? 0,
+    publicationViews: publicationViews ?? 0,
+    phoneClicks: phoneClicks ?? 0,
+    routeClicks: routeClicks ?? 0,
+    menuOpens: menuOpens ?? 0,
+    favoriteAdds: favoriteAdds ?? 0
+  };
+}
+
 export async function getBusinessPublications(organizationId: string) {
   const membership = await assertBusinessMembership(organizationId);
 
