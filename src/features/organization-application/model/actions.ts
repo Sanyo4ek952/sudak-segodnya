@@ -35,11 +35,41 @@ function getString(formData: FormData, name: string) {
   return typeof value === "string" ? value : "";
 }
 
-function formError(message = "Проверьте поля заявки и попробуйте снова.") {
+const applicationFieldErrorMessages: Record<string, string> = {
+  organizationName: "Укажите название организации: минимум 2 символа.",
+  categoryId: "Выберите активную категорию из списка.",
+  description: "Добавьте краткое описание: минимум 10 символов.",
+  address: "Укажите адрес: минимум 3 символа.",
+  phone: "Укажите контактный телефон: минимум 5 символов.",
+  relationship: "Укажите вашу связь с организацией: минимум 3 символа.",
+  confirmationInfo: "Подтверждающая информация должна быть не длиннее 2000 символов."
+};
+
+function formError(
+  message = "Проверьте отмеченные поля и попробуйте снова.",
+  fieldErrors?: Record<string, string>
+): ApplicationFormState {
   return {
     status: "error",
-    message
+    message,
+    fieldErrors
   } satisfies ApplicationFormState;
+}
+
+function validationError(error: z.ZodError): ApplicationFormState {
+  const fieldErrors: Record<string, string> = {};
+
+  for (const issue of error.issues) {
+    const fieldName = issue.path[0];
+
+    if (typeof fieldName !== "string" || fieldErrors[fieldName]) {
+      continue;
+    }
+
+    fieldErrors[fieldName] = applicationFieldErrorMessages[fieldName] ?? "Проверьте значение поля.";
+  }
+
+  return formError("Проверьте отмеченные поля и попробуйте снова.", fieldErrors);
 }
 
 export async function getCurrentBusinessState(): Promise<BusinessState | null> {
@@ -112,7 +142,7 @@ async function saveApplication(formData: FormData) {
   });
 
   if (!parsed.success) {
-    return { error: formError() };
+    return { error: validationError(parsed.error) };
   }
 
   const { data: category } = await supabase
@@ -123,7 +153,11 @@ async function saveApplication(formData: FormData) {
     .maybeSingle();
 
   if (!category) {
-    return { error: formError("Выберите категорию из списка.") };
+    return {
+      error: formError("Проверьте отмеченные поля и попробуйте снова.", {
+        categoryId: applicationFieldErrorMessages.categoryId
+      })
+    };
   }
 
   const payload = {
@@ -183,7 +217,7 @@ async function saveApplication(formData: FormData) {
 export async function saveOrganizationApplicationDraftAction(
   _state: ApplicationFormState,
   formData: FormData
-) {
+): Promise<ApplicationFormState> {
   const result = await saveApplication(formData);
 
   if (result.error) {
@@ -202,7 +236,7 @@ export async function saveOrganizationApplicationDraftAction(
 export async function submitOrganizationApplicationAction(
   _state: ApplicationFormState,
   formData: FormData
-) {
+): Promise<ApplicationFormState> {
   const result = await saveApplication(formData);
 
   if (result.error) {
@@ -215,7 +249,9 @@ export async function submitOrganizationApplicationAction(
   });
 
   if (error) {
-    return formError("Не получилось отправить заявку. Проверьте обязательные поля.");
+    return formError(
+      "Не получилось отправить заявку. Проверьте обязательные поля или сохраните черновик и попробуйте снова."
+    );
   }
 
   revalidatePath("/business");

@@ -42,7 +42,11 @@ export function OrganizationApplicationForm({
     <form action={saveAction} className="space-y-5">
       <input type="hidden" name="applicationId" value={application?.id ?? ""} />
       <fieldset disabled={readOnly} className="space-y-4 disabled:opacity-80">
-        <FormField id="organizationName" label="Название организации">
+        <FormField
+          id="organizationName"
+          label="Название организации"
+          error={currentState.fieldErrors?.organizationName}
+        >
           <Input
             id="organizationName"
             name="organizationName"
@@ -50,7 +54,12 @@ export function OrganizationApplicationForm({
             defaultValue={application?.organization_name ?? ""}
           />
         </FormField>
-        <FormField id="categoryId" label="Категория">
+        <FormField
+          id="categoryId"
+          label="Основной тип организации"
+          hint="Выберите, чем организация является в первую очередь. Категории событий, акций и объявлений указываются отдельно при создании публикаций."
+          error={currentState.fieldErrors?.categoryId}
+        >
           <Select id="categoryId" name="categoryId" required defaultValue={application?.category_id ?? ""}>
             <option value="" disabled>
               Выберите категорию
@@ -62,7 +71,11 @@ export function OrganizationApplicationForm({
             ))}
           </Select>
         </FormField>
-        <FormField id="description" label="Краткое описание">
+        <FormField
+          id="description"
+          label="Краткое описание"
+          error={currentState.fieldErrors?.description}
+        >
           <Textarea
             id="description"
             name="description"
@@ -70,16 +83,17 @@ export function OrganizationApplicationForm({
             defaultValue={application?.description ?? ""}
           />
         </FormField>
-        <FormField id="address" label="Адрес">
+        <FormField id="address" label="Адрес" error={currentState.fieldErrors?.address}>
           <Input id="address" name="address" required defaultValue={application?.address ?? ""} />
         </FormField>
-        <FormField id="phone" label="Контактный телефон">
+        <FormField id="phone" label="Контактный телефон" error={currentState.fieldErrors?.phone}>
           <Input id="phone" name="phone" required defaultValue={application?.phone ?? ""} />
         </FormField>
         <FormField
           id="relationship"
           label="Связь с организацией"
           hint="Например: владелец, управляющий, администратор или ответственный за публикации."
+          error={currentState.fieldErrors?.relationship}
         >
           <Textarea
             id="relationship"
@@ -92,6 +106,7 @@ export function OrganizationApplicationForm({
           id="confirmationInfo"
           label="Подтверждающая информация"
           hint="Можно указать сайт, соцсеть, рабочий email или комментарий для администратора."
+          error={currentState.fieldErrors?.confirmationInfo}
         >
           <Textarea
             id="confirmationInfo"
