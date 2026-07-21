@@ -86,6 +86,22 @@ function errorState(fieldErrors: Partial<Record<ApplicationFieldName, string>>):
   };
 }
 
+function mergeFieldError(
+  fieldErrors: Partial<Record<ApplicationFieldName, string>> | undefined,
+  fieldName: ApplicationFieldName,
+  error: string | null
+) {
+  const nextFieldErrors = { ...(fieldErrors ?? {}) };
+
+  if (error) {
+    nextFieldErrors[fieldName] = error;
+  } else {
+    delete nextFieldErrors[fieldName];
+  }
+
+  return nextFieldErrors;
+}
+
 function focusFirstError(fieldErrors?: Partial<Record<ApplicationFieldName, string>>) {
   const firstFieldName = fieldOrder.find((fieldName) => fieldErrors?.[fieldName]);
 
@@ -111,6 +127,7 @@ export function OrganizationApplicationForm({
   const [selectedCategoryId, setSelectedCategoryId] = useState(application?.category_id ?? "");
   const [clientState, setClientState] = useState<ApplicationFormState>(initialApplicationFormState);
   const [hideServerFieldErrors, setHideServerFieldErrors] = useState(false);
+  const [touchedFields, setTouchedFields] = useState<Partial<Record<ApplicationFieldName, boolean>>>({});
   const [saveState, saveAction] = useActionState(
     saveOrganizationApplicationDraftAction,
     initialApplicationFormState
@@ -129,17 +146,29 @@ export function OrganizationApplicationForm({
     : { ...visibleServerState, fieldErrors: currentFieldErrors };
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
 
-  function validateCurrentForm() {
-    if (!formRef.current) {
-      return {};
-    }
-
-    return validateForm(new FormData(formRef.current));
+  function showFieldError(fieldName: ApplicationFieldName, value: string) {
+    const fieldErrors = mergeFieldError(
+      clientState.fieldErrors,
+      fieldName,
+      validateField(fieldName, value.trim())
+    );
+    setHideServerFieldErrors(true);
+    setTouchedFields((current) => ({ ...current, [fieldName]: true }));
+    setClientState(hasFieldErrors(fieldErrors) ? errorState(fieldErrors) : initialApplicationFormState);
   }
 
-  function handleFormInput() {
-    const fieldErrors = validateCurrentForm();
-    setHideServerFieldErrors(true);
+  function clearFieldErrorIfValid(fieldName: ApplicationFieldName, value: string) {
+    if (!touchedFields[fieldName] && !clientState.fieldErrors?.[fieldName]) {
+      return;
+    }
+
+    const error = validateField(fieldName, value.trim());
+
+    if (error) {
+      return;
+    }
+
+    const fieldErrors = mergeFieldError(clientState.fieldErrors, fieldName, null);
     setClientState(hasFieldErrors(fieldErrors) ? errorState(fieldErrors) : initialApplicationFormState);
   }
 
@@ -149,11 +178,13 @@ export function OrganizationApplicationForm({
     if (!hasFieldErrors(fieldErrors)) {
       setHideServerFieldErrors(false);
       setClientState(initialApplicationFormState);
+      setTouchedFields({});
       return;
     }
 
     event.preventDefault();
     setHideServerFieldErrors(true);
+    setTouchedFields(Object.fromEntries(fieldOrder.map((fieldName) => [fieldName, true])));
     setClientState(errorState(fieldErrors));
     focusFirstError(fieldErrors);
   }
@@ -170,9 +201,6 @@ export function OrganizationApplicationForm({
       action={saveAction}
       className="space-y-5"
       noValidate
-      onBlur={handleFormInput}
-      onInput={handleFormInput}
-      onChange={handleFormInput}
       onSubmit={handleFormSubmit}
     >
       <input type="hidden" name="applicationId" value={application?.id ?? ""} />
@@ -191,6 +219,8 @@ export function OrganizationApplicationForm({
             aria-invalid={Boolean(currentState.fieldErrors?.organizationName)}
             aria-describedby={currentState.fieldErrors?.organizationName ? "organizationName-error" : undefined}
             defaultValue={application?.organization_name ?? ""}
+            onBlur={(event) => showFieldError("organizationName", event.currentTarget.value)}
+            onChange={(event) => clearFieldErrorIfValid("organizationName", event.currentTarget.value)}
           />
         </FormField>
         <FormField
@@ -206,7 +236,12 @@ export function OrganizationApplicationForm({
             aria-invalid={Boolean(currentState.fieldErrors?.categoryId)}
             aria-describedby={currentState.fieldErrors?.categoryId ? "categoryId-error" : "categoryId-hint"}
             value={selectedCategoryId}
-            onChange={(event) => setSelectedCategoryId(event.currentTarget.value)}
+            onBlur={(event) => showFieldError("categoryId", event.currentTarget.value)}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              setSelectedCategoryId(value);
+              clearFieldErrorIfValid("categoryId", value);
+            }}
           >
             <option value="" disabled>
               Выберите категорию
@@ -235,6 +270,8 @@ export function OrganizationApplicationForm({
             aria-invalid={Boolean(currentState.fieldErrors?.description)}
             aria-describedby={currentState.fieldErrors?.description ? "description-error" : undefined}
             defaultValue={application?.description ?? ""}
+            onBlur={(event) => showFieldError("description", event.currentTarget.value)}
+            onChange={(event) => clearFieldErrorIfValid("description", event.currentTarget.value)}
           />
         </FormField>
         <FormField id="address" label="Адрес" error={currentState.fieldErrors?.address}>
@@ -247,6 +284,8 @@ export function OrganizationApplicationForm({
             aria-invalid={Boolean(currentState.fieldErrors?.address)}
             aria-describedby={currentState.fieldErrors?.address ? "address-error" : undefined}
             defaultValue={application?.address ?? ""}
+            onBlur={(event) => showFieldError("address", event.currentTarget.value)}
+            onChange={(event) => clearFieldErrorIfValid("address", event.currentTarget.value)}
           />
         </FormField>
         <FormField id="phone" label="Контактный телефон" error={currentState.fieldErrors?.phone}>
@@ -259,6 +298,8 @@ export function OrganizationApplicationForm({
             aria-invalid={Boolean(currentState.fieldErrors?.phone)}
             aria-describedby={currentState.fieldErrors?.phone ? "phone-error" : undefined}
             defaultValue={application?.phone ?? ""}
+            onBlur={(event) => showFieldError("phone", event.currentTarget.value)}
+            onChange={(event) => clearFieldErrorIfValid("phone", event.currentTarget.value)}
           />
         </FormField>
         <FormField
@@ -276,6 +317,8 @@ export function OrganizationApplicationForm({
             aria-invalid={Boolean(currentState.fieldErrors?.relationship)}
             aria-describedby={currentState.fieldErrors?.relationship ? "relationship-error" : "relationship-hint"}
             defaultValue={application?.relationship ?? ""}
+            onBlur={(event) => showFieldError("relationship", event.currentTarget.value)}
+            onChange={(event) => clearFieldErrorIfValid("relationship", event.currentTarget.value)}
           />
         </FormField>
         <FormField
@@ -293,6 +336,8 @@ export function OrganizationApplicationForm({
               currentState.fieldErrors?.confirmationInfo ? "confirmationInfo-error" : "confirmationInfo-hint"
             }
             defaultValue={application?.confirmation_info ?? ""}
+            onBlur={(event) => showFieldError("confirmationInfo", event.currentTarget.value)}
+            onChange={(event) => clearFieldErrorIfValid("confirmationInfo", event.currentTarget.value)}
           />
         </FormField>
       </fieldset>
