@@ -3,7 +3,7 @@ import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent } from "@/shared/ui/card";
 import { FavoriteToggle } from "@/features/save-favorite/ui/favorite-toggle";
 import type { Organization } from "@/entities/organization/model/types";
-import { organizationCategoryLabels } from "@/entities/organization/model/types";
+import { organizationTypeLabels } from "@/entities/organization/model/types";
 import { OrganizationImage } from "@/entities/organization/ui/organization-image";
 
 export function OrganizationCard({ organization }: { organization: Organization }) {
@@ -14,7 +14,7 @@ export function OrganizationCard({ organization }: { organization: Organization 
       </Link>
       <CardContent className="space-y-3">
         <div className="flex items-start justify-between gap-3">
-          <Badge variant="muted">{organizationCategoryLabels[organization.category]}</Badge>
+          <Badge variant="muted">{organizationTypeLabels[organization.type]}</Badge>
           <FavoriteToggle
             id={organization.id}
             type="organization"

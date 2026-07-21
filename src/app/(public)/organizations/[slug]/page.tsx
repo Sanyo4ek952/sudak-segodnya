@@ -10,7 +10,7 @@ import { AnalyticsPageView } from "@/features/analytics/ui/analytics-page-view";
 import { FavoriteToggle } from "@/features/save-favorite/ui/favorite-toggle";
 import { getPublicOrganizationBySlug } from "@/entities/organization/api/organizations";
 import { OrganizationImage } from "@/entities/organization/ui/organization-image";
-import { organizationCategoryLabels } from "@/entities/organization/model/types";
+import { organizationTypeLabels } from "@/entities/organization/model/types";
 import { listPublicPublicationsByOrganization } from "@/entities/publication/api/publications";
 import { PublicationCard } from "@/entities/publication/ui/publication-card";
 import { formatDate } from "@/shared/lib/date";
@@ -55,7 +55,7 @@ export default async function OrganizationPage({ params }: OrganizationPageProps
         <OrganizationImage organization={organization} className="aspect-[16/11] w-full md:aspect-square" priority />
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="muted">{organizationCategoryLabels[organization.category]}</Badge>
+            <Badge variant="muted">{organizationTypeLabels[organization.type]}</Badge>
             <Badge variant="success">Информация актуальна</Badge>
           </div>
           <div className="space-y-3">

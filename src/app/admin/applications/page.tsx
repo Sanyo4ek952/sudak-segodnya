@@ -73,7 +73,11 @@ export default async function AdminApplicationsPage({
       {result.items.length === 0 ? (
         <EmptyState
           title="Заявок нет"
-          description="В выбранном фильтре пока нет заявок организаций."
+          description={
+            status === "submitted"
+              ? "На рассмотрении пока нет заявок. Если заявка была сохранена как черновик или уже обработана, проверьте фильтр «Все»."
+              : "В выбранном фильтре пока нет заявок организаций."
+          }
         />
       ) : (
         <div className="grid gap-4">
@@ -89,7 +93,7 @@ export default async function AdminApplicationsPage({
                       {application.organization_name ?? "Заявка организации"}
                     </Link>
                     <p className="text-sm leading-6 text-foreground-muted">
-                      {application.organization_categories?.name ?? application.category_name ?? "Категория не указана"}
+                      {application.organization_types?.name ?? "Тип не указан"}
                     </p>
                   </div>
                   <Badge variant={getOrganizationApplicationStatusVariant(application.status)}>

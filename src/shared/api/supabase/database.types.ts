@@ -38,7 +38,7 @@ export type Database = {
         Row: {
           anonymous_id: string | null
           created_at: string
-          event_name: string
+          event_name: Database["public"]["Enums"]["analytics_event_name"]
           id: string
           menu_item_id: string | null
           metadata: Json
@@ -49,7 +49,7 @@ export type Database = {
         Insert: {
           anonymous_id?: string | null
           created_at?: string
-          event_name: string
+          event_name: Database["public"]["Enums"]["analytics_event_name"]
           id?: string
           menu_item_id?: string | null
           metadata?: Json
@@ -60,7 +60,7 @@ export type Database = {
         Update: {
           anonymous_id?: string | null
           created_at?: string
-          event_name?: string
+          event_name?: Database["public"]["Enums"]["analytics_event_name"]
           id?: string
           menu_item_id?: string | null
           metadata?: Json
@@ -146,7 +146,7 @@ export type Database = {
           created_at: string
           id: string
           publication_id: string
-          reason: string
+          reason: Database["public"]["Enums"]["inaccuracy_report_reason"]
           reporter_fingerprint: string | null
           reporter_user_id: string | null
           resolved_at: string | null
@@ -160,7 +160,7 @@ export type Database = {
           created_at?: string
           id?: string
           publication_id: string
-          reason: string
+          reason: Database["public"]["Enums"]["inaccuracy_report_reason"]
           reporter_fingerprint?: string | null
           reporter_user_id?: string | null
           resolved_at?: string | null
@@ -174,7 +174,7 @@ export type Database = {
           created_at?: string
           id?: string
           publication_id?: string
-          reason?: string
+          reason?: Database["public"]["Enums"]["inaccuracy_report_reason"]
           reporter_fingerprint?: string | null
           reporter_user_id?: string | null
           resolved_at?: string | null
@@ -239,7 +239,6 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
-          image_path: string | null
           is_available: boolean
           organization_id: string
           price_text: string | null
@@ -252,7 +251,6 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
-          image_path?: string | null
           is_available?: boolean
           organization_id: string
           price_text?: string | null
@@ -265,7 +263,6 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
-          image_path?: string | null
           is_available?: boolean
           organization_id?: string
           price_text?: string | null
@@ -290,13 +287,106 @@ export type Database = {
           },
         ]
       }
+      media_assets: {
+        Row: {
+          alt_text: string | null
+          application_id: string | null
+          bucket_id: string
+          created_at: string
+          deleted_at: string | null
+          height: number | null
+          id: string
+          menu_item_id: string | null
+          mime_type: string | null
+          organization_id: string | null
+          publication_id: string | null
+          purpose: Database["public"]["Enums"]["media_asset_purpose"]
+          size_bytes: number | null
+          sort_order: number
+          storage_path: string
+          updated_at: string
+          uploaded_by: string
+          visibility: Database["public"]["Enums"]["media_asset_visibility"]
+          width: number | null
+        }
+        Insert: {
+          alt_text?: string | null
+          application_id?: string | null
+          bucket_id: string
+          created_at?: string
+          deleted_at?: string | null
+          height?: number | null
+          id?: string
+          menu_item_id?: string | null
+          mime_type?: string | null
+          organization_id?: string | null
+          publication_id?: string | null
+          purpose: Database["public"]["Enums"]["media_asset_purpose"]
+          size_bytes?: number | null
+          sort_order?: number
+          storage_path: string
+          updated_at?: string
+          uploaded_by?: string
+          visibility?: Database["public"]["Enums"]["media_asset_visibility"]
+          width?: number | null
+        }
+        Update: {
+          alt_text?: string | null
+          application_id?: string | null
+          bucket_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          height?: number | null
+          id?: string
+          menu_item_id?: string | null
+          mime_type?: string | null
+          organization_id?: string | null
+          publication_id?: string | null
+          purpose?: Database["public"]["Enums"]["media_asset_purpose"]
+          size_bytes?: number | null
+          sort_order?: number
+          storage_path?: string
+          updated_at?: string
+          uploaded_by?: string
+          visibility?: Database["public"]["Enums"]["media_asset_visibility"]
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_assets_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "organization_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_assets_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_assets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_assets_publication_id_fkey"
+            columns: ["publication_id"]
+            isOneToOne: false
+            referencedRelation: "publications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_applications: {
         Row: {
           address: string | null
           admin_comment: string | null
           applicant_id: string
-          category_id: string | null
-          category_name: string | null
           confirmation_info: string | null
           created_at: string
           description: string | null
@@ -309,14 +399,13 @@ export type Database = {
           reviewed_by: string | null
           status: Database["public"]["Enums"]["organization_application_status"]
           submitted_at: string | null
+          type_id: string | null
           updated_at: string
         }
         Insert: {
           address?: string | null
           admin_comment?: string | null
           applicant_id?: string
-          category_id?: string | null
-          category_name?: string | null
           confirmation_info?: string | null
           created_at?: string
           description?: string | null
@@ -329,14 +418,13 @@ export type Database = {
           reviewed_by?: string | null
           status?: Database["public"]["Enums"]["organization_application_status"]
           submitted_at?: string | null
+          type_id?: string | null
           updated_at?: string
         }
         Update: {
           address?: string | null
           admin_comment?: string | null
           applicant_id?: string
-          category_id?: string | null
-          category_name?: string | null
           confirmation_info?: string | null
           created_at?: string
           description?: string | null
@@ -349,14 +437,15 @@ export type Database = {
           reviewed_by?: string | null
           status?: Database["public"]["Enums"]["organization_application_status"]
           submitted_at?: string | null
+          type_id?: string | null
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "organization_applications_category_id_fkey"
-            columns: ["category_id"]
+            foreignKeyName: "organization_applications_type_id_fkey"
+            columns: ["type_id"]
             isOneToOne: false
-            referencedRelation: "organization_categories"
+            referencedRelation: "organization_types"
             referencedColumns: ["id"]
           },
           {
@@ -368,7 +457,7 @@ export type Database = {
           },
         ]
       }
-      organization_categories: {
+      organization_types: {
         Row: {
           created_at: string
           description: string | null
@@ -442,64 +531,64 @@ export type Database = {
       organizations: {
         Row: {
           address: string | null
-          category_id: string | null
           contact_links: Json
-          cover_path: string | null
           created_at: string
           created_by: string
           description: string | null
           id: string
           last_public_update_at: string | null
-          logo_path: string | null
+          latitude: number | null
+          longitude: number | null
           name: string
           phone: string | null
           slug: string
           status: Database["public"]["Enums"]["organization_status"]
+          type_id: string
           updated_at: string
           working_hours: string | null
         }
         Insert: {
           address?: string | null
-          category_id?: string | null
           contact_links?: Json
-          cover_path?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
           id?: string
           last_public_update_at?: string | null
-          logo_path?: string | null
+          latitude?: number | null
+          longitude?: number | null
           name: string
           phone?: string | null
           slug: string
           status?: Database["public"]["Enums"]["organization_status"]
+          type_id: string
           updated_at?: string
           working_hours?: string | null
         }
         Update: {
           address?: string | null
-          category_id?: string | null
           contact_links?: Json
-          cover_path?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
           id?: string
           last_public_update_at?: string | null
-          logo_path?: string | null
+          latitude?: number | null
+          longitude?: number | null
           name?: string
           phone?: string | null
           slug?: string
           status?: Database["public"]["Enums"]["organization_status"]
+          type_id?: string
           updated_at?: string
           working_hours?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "organizations_category_id_fkey"
-            columns: ["category_id"]
+            foreignKeyName: "organizations_type_id_fkey"
+            columns: ["type_id"]
             isOneToOne: false
-            referencedRelation: "organization_categories"
+            referencedRelation: "organization_types"
             referencedColumns: ["id"]
           },
         ]
@@ -527,6 +616,39 @@ export type Database = {
           id?: string
           phone?: string | null
           role?: Database["public"]["Enums"]["profile_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      publication_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
           updated_at?: string
         }
         Relationships: []
@@ -580,14 +702,13 @@ export type Database = {
           age_limit: string | null
           author_id: string
           cancelled_at: string | null
-          category_slug: string
+          category_id: string
           completed_at: string | null
           contact_phone: string | null
           created_at: string
           description: string | null
           ends_at: string | null
           id: string
-          image_path: string | null
           is_free: boolean
           moderation_comment: string | null
           organization_id: string
@@ -607,14 +728,13 @@ export type Database = {
           age_limit?: string | null
           author_id?: string
           cancelled_at?: string | null
-          category_slug: string
+          category_id: string
           completed_at?: string | null
           contact_phone?: string | null
           created_at?: string
           description?: string | null
           ends_at?: string | null
           id?: string
-          image_path?: string | null
           is_free?: boolean
           moderation_comment?: string | null
           organization_id: string
@@ -634,14 +754,13 @@ export type Database = {
           age_limit?: string | null
           author_id?: string
           cancelled_at?: string | null
-          category_slug?: string
+          category_id?: string
           completed_at?: string | null
           contact_phone?: string | null
           created_at?: string
           description?: string | null
           ends_at?: string | null
           id?: string
-          image_path?: string | null
           is_free?: boolean
           moderation_comment?: string | null
           organization_id?: string
@@ -658,6 +777,13 @@ export type Database = {
           valid_until?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "publications_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "publication_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "publications_organization_id_fkey"
             columns: ["organization_id"]
@@ -725,8 +851,6 @@ export type Database = {
           address: string | null
           admin_comment: string | null
           applicant_id: string
-          category_id: string | null
-          category_name: string | null
           confirmation_info: string | null
           created_at: string
           description: string | null
@@ -739,6 +863,7 @@ export type Database = {
           reviewed_by: string | null
           status: Database["public"]["Enums"]["organization_application_status"]
           submitted_at: string | null
+          type_id: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -759,27 +884,48 @@ export type Database = {
         }
         Returns: {
           address: string | null
-          category_id: string | null
           contact_links: Json
-          cover_path: string | null
           created_at: string
           created_by: string
           description: string | null
           id: string
           last_public_update_at: string | null
-          logo_path: string | null
+          latitude: number | null
+          longitude: number | null
           name: string
           phone: string | null
           slug: string
           status: Database["public"]["Enums"]["organization_status"]
+          type_id: string
           updated_at: string
           working_hours: string | null
         }
       }
     }
     Enums: {
+      analytics_event_name:
+        | "organization_view"
+        | "publication_view"
+        | "phone_click"
+        | "route_click"
+        | "menu_open"
+        | "favorite_add"
       important_announcement_status: "draft" | "active" | "expired" | "hidden"
+      inaccuracy_report_reason:
+        | "wrong_datetime"
+        | "wrong_price"
+        | "cancelled"
+        | "wrong_address"
+        | "outdated"
+        | "other"
       inaccuracy_report_status: "new" | "reviewing" | "resolved" | "rejected"
+      media_asset_purpose:
+        | "organization_logo"
+        | "organization_cover"
+        | "application_confirmation"
+        | "publication_photo"
+        | "menu_item_photo"
+      media_asset_visibility: "public" | "private"
       organization_application_status:
         | "draft"
         | "submitted"
@@ -935,8 +1081,32 @@ export const Constants = {
   },
   public: {
     Enums: {
+      analytics_event_name: [
+        "organization_view",
+        "publication_view",
+        "phone_click",
+        "route_click",
+        "menu_open",
+        "favorite_add",
+      ],
       important_announcement_status: ["draft", "active", "expired", "hidden"],
+      inaccuracy_report_reason: [
+        "wrong_datetime",
+        "wrong_price",
+        "cancelled",
+        "wrong_address",
+        "outdated",
+        "other",
+      ],
       inaccuracy_report_status: ["new", "reviewing", "resolved", "rejected"],
+      media_asset_purpose: [
+        "organization_logo",
+        "organization_cover",
+        "application_confirmation",
+        "publication_photo",
+        "menu_item_photo",
+      ],
+      media_asset_visibility: ["public", "private"],
       organization_application_status: [
         "draft",
         "submitted",

@@ -167,7 +167,7 @@ export async function getAdminOrganizations({
   const supabase = await createSupabaseServerClient();
   let query = supabase
     .from("organizations")
-    .select("*, organization_categories(id, name, slug)", { count: "exact" })
+    .select("*, organization_types(id, name, slug)", { count: "exact" })
     .order("updated_at", { ascending: false })
     .range(from, to);
 

@@ -21,7 +21,7 @@ export const initialAdminActionState: AdminActionState = {
 };
 
 export type ApplicationWithRelations = Tables<"organization_applications"> & {
-  organization_categories: Pick<Tables<"organization_categories">, "id" | "name" | "slug"> | null;
+  organization_types: Pick<Tables<"organization_types">, "id" | "name" | "slug"> | null;
   organizations: Pick<Tables<"organizations">, "id" | "name" | "slug" | "status"> | null;
 };
 

@@ -1,7 +1,6 @@
 import { createSupabaseServerClient } from "@/shared/api/supabase/server";
 import type { Database, Tables } from "@/shared/api/supabase/database.types";
-import type { OrganizationCategory } from "@/entities/organization/model/types";
-import type { Publication, PublicationStatus } from "@/entities/publication/model/types";
+import type { Publication, PublicationCategory, PublicationStatus } from "@/entities/publication/model/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ImportantAnnouncement = {
@@ -14,19 +13,23 @@ export type ImportantAnnouncement = {
 
 type PublicationRow = Tables<"publications"> & {
   organizations: Pick<Tables<"organizations">, "id" | "slug" | "name" | "address" | "phone"> | null;
+  publication_categories: Pick<Tables<"publication_categories">, "slug" | "name"> | null;
   publication_schedules: Array<Pick<Tables<"publication_schedules">, "schedule_text" | "sort_order">>;
+  media_assets: Array<Pick<Tables<"media_assets">, "bucket_id" | "storage_path" | "purpose" | "sort_order">>;
 };
 
 const publicationSelect = `
   *,
   organizations(id, slug, name, address, phone),
-  publication_schedules(schedule_text, sort_order)
+  publication_categories(slug, name),
+  publication_schedules(schedule_text, sort_order),
+  media_assets(bucket_id, storage_path, purpose, sort_order)
 `;
 
-function isKnownCategory(value: string): value is OrganizationCategory | "sport" {
+function isKnownCategory(value: string | null | undefined): value is PublicationCategory {
   return (
+    value === "city" ||
     value === "food" ||
-    value === "delivery" ||
     value === "kids" ||
     value === "culture" ||
     value === "excursions" ||
@@ -39,18 +42,17 @@ function isKnownCategory(value: string): value is OrganizationCategory | "sport"
 
 async function getImageUrl(
   supabase: SupabaseClient<Database>,
-  bucket: "publication-images",
-  path: string | null
+  asset: Pick<Tables<"media_assets">, "bucket_id" | "storage_path"> | undefined
 ) {
-  if (!path) {
+  if (!asset) {
     return undefined;
   }
 
-  if (path.startsWith("http://") || path.startsWith("https://")) {
-    return path;
+  if (asset.storage_path.startsWith("http://") || asset.storage_path.startsWith("https://")) {
+    return asset.storage_path;
   }
 
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 10);
+  const { data, error } = await supabase.storage.from(asset.bucket_id).createSignedUrl(asset.storage_path, 60 * 10);
 
   if (error) {
     return undefined;
@@ -67,7 +69,11 @@ async function mapPublication(
     return null;
   }
 
-  const category = isKnownCategory(row.category_slug) ? row.category_slug : "services";
+  const category = isKnownCategory(row.publication_categories?.slug) ? row.publication_categories.slug : "services";
+  const imageAsset = row.media_assets
+    .slice()
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .find((asset) => asset.purpose === "publication_photo");
   const schedule = row.publication_schedules
     .slice()
     .sort((a, b) => a.sort_order - b.sort_order)
@@ -95,7 +101,7 @@ async function mapPublication(
     priceText: row.price_text ?? (row.is_free ? "Бесплатно" : "Уточняйте"),
     isFree: row.is_free,
     category,
-    image: await getImageUrl(supabase, "publication-images", row.image_path),
+    image: await getImageUrl(supabase, imageAsset),
     contactPhone: row.contact_phone ?? row.organizations.phone ?? undefined,
     ageLimit: row.age_limit ?? undefined,
     updatedAt: row.updated_at

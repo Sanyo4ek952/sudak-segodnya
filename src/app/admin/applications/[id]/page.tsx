@@ -63,7 +63,7 @@ export default async function AdminApplicationPage({
           </div>
 
           <dl className="grid gap-4 sm:grid-cols-2">
-            <DetailRow label="Категория" value={application.organization_categories?.name ?? application.category_name} />
+            <DetailRow label="Тип организации" value={application.organization_types?.name} />
             <DetailRow label="Телефон" value={application.phone} />
             <DetailRow label="Адрес" value={application.address} />
             <DetailRow label="Заявитель" value={application.applicant?.display_name ?? application.applicant_id} />

@@ -2,6 +2,7 @@ import { logoutAction } from "@/features/auth/model/actions";
 import { getBusinessOrganizations } from "@/features/business-cabinet/model/actions";
 import { getCurrentBusinessState } from "@/features/organization-application/model/actions";
 import { organizationApplicationStatusLabels } from "@/entities/organization-application/model/types";
+import { formatDateTime } from "@/shared/lib/date";
 import { Badge } from "@/shared/ui/badge";
 import { Button, LinkButton } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
@@ -24,7 +25,16 @@ function statusVariant(status: keyof typeof organizationApplicationStatusLabels)
   return "info";
 }
 
-export default async function BusinessPage() {
+type BusinessPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function firstSearchValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function BusinessPage({ searchParams }: BusinessPageProps) {
+  const params = (await searchParams) ?? {};
   const [state, organizations] = await Promise.all([
     getCurrentBusinessState(),
     getBusinessOrganizations()
@@ -36,6 +46,8 @@ export default async function BusinessPage() {
 
   const hasMemberships = organizations.length > 0;
   const application = state.application;
+  const applicationNotice = firstSearchValue(params.application);
+  const showSubmittedNotice = applicationNotice === "submitted" && application?.status === "submitted";
 
   return (
     <div className="mx-auto max-w-form space-y-6">
@@ -51,6 +63,17 @@ export default async function BusinessPage() {
           </form>
         }
       />
+
+      {showSubmittedNotice ? (
+        <Card>
+          <CardContent className="space-y-2">
+            <Badge variant="success">Заявка отправлена</Badge>
+            <p className="text-sm leading-6 text-foreground-muted">
+              Заявка принята и находится на рассмотрении. Ее статус будет обновляться здесь, в кабинете организации.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {!state.user.emailConfirmedAt ? (
         <Card>
@@ -109,18 +132,27 @@ export default async function BusinessPage() {
             </div>
           </CardContent>
         </Card>
-      ) : application ? (
+      ) : null}
+
+      {application ? (
         <Card>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">{application.organization_name ?? "Заявка организации"}</h2>
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold">{application.organization_name ?? "Заявка организации"}</h2>
+                <p className="text-sm leading-6 text-foreground-muted">
+                  {application.submitted_at
+                    ? `Подана: ${formatDateTime(application.submitted_at)}`
+                    : `Создана: ${formatDateTime(application.created_at)}`}
+                </p>
+              </div>
               <Badge variant={statusVariant(application.status)}>
                 {organizationApplicationStatusLabels[application.status]}
               </Badge>
             </div>
             <p className="text-sm leading-6 text-foreground-muted">
               {application.status === "submitted"
-                ? "Заявка на рассмотрении. Когда администратор примет решение, статус обновится здесь."
+                ? "Заявка на рассмотрении. Администратор проверит данные организации, после решения статус обновится здесь."
                 : application.status === "needs_changes"
                   ? "Администратор запросил уточнение. Отредактируйте заявку и отправьте ее повторно."
                   : application.status === "rejected"
@@ -145,14 +177,16 @@ export default async function BusinessPage() {
             )}
           </CardContent>
         </Card>
-      ) : (
+      ) : null}
+
+      {!hasMemberships && !application ? (
         <EmptyState
           title="Заявка еще не подавалась"
           description="Заполните данные организации, чтобы администратор мог проверить связь с ней."
           actionLabel="Создать заявку"
           actionHref="/business/application"
         />
-      )}
+      ) : null}
     </div>
   );
 }

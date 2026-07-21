@@ -1,4 +1,4 @@
-import { getCurrentBusinessState, getOrganizationCategories } from "@/features/organization-application/model/actions";
+import { getCurrentBusinessState, getOrganizationTypes } from "@/features/organization-application/model/actions";
 import { OrganizationApplicationForm } from "@/features/organization-application/ui/organization-application-form";
 import {
   editableApplicationStatuses,
@@ -12,7 +12,7 @@ import { SectionHeader } from "@/shared/ui/section-header";
 export default async function OrganizationApplicationPage() {
   const [state, categories] = await Promise.all([
     getCurrentBusinessState(),
-    getOrganizationCategories()
+    getOrganizationTypes()
   ]);
 
   if (!state) {

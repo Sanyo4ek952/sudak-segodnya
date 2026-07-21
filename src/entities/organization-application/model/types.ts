@@ -1,7 +1,7 @@
 import type { Tables } from "@/shared/api/supabase/database.types";
 
 export type OrganizationApplication = Tables<"organization_applications">;
-export type OrganizationCategory = Tables<"organization_categories">;
+export type OrganizationType = Tables<"organization_types">;
 export type OrganizationMembership = Tables<"organization_members"> & {
   organizations: Pick<Tables<"organizations">, "id" | "name" | "slug" | "status"> | null;
 };

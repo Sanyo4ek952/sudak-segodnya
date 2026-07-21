@@ -44,17 +44,26 @@ on conflict (id) do update
 set role = excluded.role,
     display_name = excluded.display_name;
 
-insert into public.organization_categories (id, slug, name, sort_order)
+insert into public.organization_types (id, slug, name, sort_order)
 values ('30000000-0000-0000-0000-000000000008', 'services', 'Services', 80)
 on conflict (slug) do update
 set name = excluded.name,
     is_active = true;
 
-insert into public.organizations (id, slug, name, description, status, category_id, created_by)
+insert into public.publication_categories (id, slug, name, sort_order)
 values
-  ('11000000-0000-0000-0000-000000000001', 'content-active-org', 'Content Active Org', 'Description', 'active', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000013'),
-  ('11000000-0000-0000-0000-000000000002', 'content-blocked-org', 'Content Blocked Org', 'Description', 'blocked', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000013'),
-  ('11000000-0000-0000-0000-000000000003', 'content-member-org', 'Content Member Org', 'Description', 'pending', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000013');
+  ('31000000-0000-0000-0000-000000000001', 'culture', 'Culture', 40),
+  ('31000000-0000-0000-0000-000000000008', 'services', 'Services', 90)
+on conflict (slug) do update
+set name = excluded.name,
+    sort_order = excluded.sort_order,
+    is_active = true;
+
+insert into public.organizations (id, slug, name, description, phone, status, type_id, created_by)
+values
+  ('11000000-0000-0000-0000-000000000001', 'content-active-org', 'Content Active Org', 'Description', 'Phone', 'active', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000013'),
+  ('11000000-0000-0000-0000-000000000002', 'content-blocked-org', 'Content Blocked Org', 'Description', 'Phone', 'blocked', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000013'),
+  ('11000000-0000-0000-0000-000000000003', 'content-member-org', 'Content Member Org', 'Description', 'Phone', 'pending', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000013');
 
 insert into public.organization_members (organization_id, user_id, role)
 values ('11000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000011', 'manager');
@@ -68,7 +77,7 @@ insert into public.publications (
   status,
   title,
   description,
-  category_slug,
+  category_id,
   starts_at,
   ends_at,
   valid_until,
@@ -77,11 +86,11 @@ insert into public.publications (
   sort_published_at
 )
 values
-  ('12000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013', 'visible-event', 'event', 'published', 'Visible Event', 'Description', 'culture', now() + interval '1 hour', now() + interval '3 hours', null, now(), 'Бесплатно', now()),
-  ('12000000-0000-0000-0000-000000000002', '11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013', 'expired-event', 'event', 'published', 'Expired Event', 'Description', 'culture', now() - interval '3 hours', now() - interval '1 hour', null, now() - interval '1 day', 'Бесплатно', now() - interval '1 day'),
-  ('12000000-0000-0000-0000-000000000003', '11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013', 'hidden-event', 'event', 'hidden', 'Hidden Event', 'Description', 'culture', now() + interval '1 hour', now() + interval '3 hours', null, now(), 'Бесплатно', now()),
-  ('12000000-0000-0000-0000-000000000004', '11000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000013', 'blocked-org-event', 'event', 'published', 'Blocked Org Event', 'Description', 'culture', now() + interval '1 hour', now() + interval '3 hours', null, now(), 'Бесплатно', now()),
-  ('12000000-0000-0000-0000-000000000005', '11000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000011', 'member-draft', 'news', 'draft', 'Member Draft', null, 'services', null, null, null, null, null, null);
+  ('12000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013', 'visible-event', 'event', 'published', 'Visible Event', 'Description', (select id from public.publication_categories where slug = 'culture'), now() + interval '1 hour', now() + interval '3 hours', null, now(), 'Бесплатно', now()),
+  ('12000000-0000-0000-0000-000000000002', '11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013', 'expired-event', 'event', 'published', 'Expired Event', 'Description', (select id from public.publication_categories where slug = 'culture'), now() - interval '3 hours', now() - interval '1 hour', null, now() - interval '1 day', 'Бесплатно', now() - interval '1 day'),
+  ('12000000-0000-0000-0000-000000000003', '11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013', 'hidden-event', 'event', 'hidden', 'Hidden Event', 'Description', (select id from public.publication_categories where slug = 'culture'), now() + interval '1 hour', now() + interval '3 hours', null, now(), 'Бесплатно', now()),
+  ('12000000-0000-0000-0000-000000000004', '11000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000013', 'blocked-org-event', 'event', 'published', 'Blocked Org Event', 'Description', (select id from public.publication_categories where slug = 'culture'), now() + interval '1 hour', now() + interval '3 hours', null, now(), 'Бесплатно', now()),
+  ('12000000-0000-0000-0000-000000000005', '11000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000011', 'member-draft', 'news', 'draft', 'Member Draft', null, (select id from public.publication_categories where slug = 'services'), null, null, null, null, null, null);
 
 insert into public.publication_schedules (publication_id, schedule_text, sort_order)
 values
@@ -141,7 +150,7 @@ select is(
 select ok(
   not pg_temp.statement_raises(
     $$ insert into public.inaccuracy_reports (publication_id, reporter_fingerprint, reason)
-       values ('12000000-0000-0000-0000-000000000001', 'guest-one', 'wrong_time') $$
+       values ('12000000-0000-0000-0000-000000000001', 'guest-one', 'wrong_datetime') $$
   ),
   'anon can report an inaccuracy for a public publication'
 );
@@ -149,7 +158,7 @@ select ok(
 select ok(
   pg_temp.statement_raises(
     $$ insert into public.inaccuracy_reports (publication_id, reporter_fingerprint, reason)
-       values ('12000000-0000-0000-0000-000000000003', 'guest-one', 'wrong_time') $$
+       values ('12000000-0000-0000-0000-000000000003', 'guest-one', 'wrong_datetime') $$
   ),
   'anon cannot report a hidden publication'
 );
@@ -228,7 +237,7 @@ select ok(
          type,
          status,
          title,
-         category_slug
+         category_id
        )
        values (
          '11000000-0000-0000-0000-000000000003',
@@ -237,7 +246,7 @@ select ok(
          'news',
          'draft',
          'New Member Draft',
-         'services'
+         (select id from public.publication_categories where slug = 'services')
        ) $$
   ),
   'representative can create a draft publication for own organization'
@@ -252,7 +261,7 @@ select ok(
          type,
          status,
          title,
-         category_slug
+         category_id
        )
        values (
          '11000000-0000-0000-0000-000000000001',
@@ -261,7 +270,7 @@ select ok(
          'news',
          'draft',
          'Foreign Org Draft',
-         'services'
+         (select id from public.publication_categories where slug = 'services')
        ) $$
   ),
   'representative cannot create publication for another organization'
@@ -276,7 +285,7 @@ select ok(
          type,
          status,
          title,
-         category_slug
+         category_id
        )
        values (
          '11000000-0000-0000-0000-000000000003',
@@ -285,7 +294,7 @@ select ok(
          'news',
          'hidden',
          'Hidden Member Draft',
-         'services'
+         (select id from public.publication_categories where slug = 'services')
        ) $$
   ),
   'representative cannot create hidden publication'
@@ -301,7 +310,7 @@ select ok(
          status,
          title,
          description,
-         category_slug,
+         category_id,
          price_text
        )
        values (
@@ -312,7 +321,7 @@ select ok(
          'published',
          'Direct Published Member',
          'Description',
-         'services',
+         (select id from public.publication_categories where slug = 'services'),
          'Бесплатно'
        ) $$
   ),
@@ -377,7 +386,7 @@ select ok(
        set status = 'resolved',
            resolved_by = '00000000-0000-0000-0000-000000000013',
            resolved_at = now()
-       where reason = 'wrong_time' $$
+       where reason = 'wrong_datetime' $$
   ),
   'admin can resolve inaccuracy reports'
 );

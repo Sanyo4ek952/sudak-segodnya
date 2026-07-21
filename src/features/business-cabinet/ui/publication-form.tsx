@@ -8,6 +8,7 @@ import {
   initialBusinessActionState
 } from "@/features/business-cabinet/model/types";
 import type { BusinessPublication } from "@/features/business-cabinet/model/types";
+import type { Tables } from "@/shared/api/supabase/database.types";
 import { BusinessActionMessage } from "@/features/business-cabinet/ui/business-action-message";
 import { FormField } from "@/shared/ui/form-field";
 import { Input } from "@/shared/ui/input";
@@ -15,25 +16,18 @@ import { Select } from "@/shared/ui/select";
 import { SubmitButton } from "@/shared/ui/submit-button";
 import { Textarea } from "@/shared/ui/textarea";
 
-const categoryOptions = [
-  { value: "food", label: "еда" },
-  { value: "kids", label: "детям" },
-  { value: "culture", label: "культура" },
-  { value: "sport", label: "спорт и кружки" },
-  { value: "services", label: "услуги" },
-  { value: "excursions", label: "экскурсии" }
-];
-
 function toInputDateTime(value: string | null | undefined) {
   return value ? value.slice(0, 16) : "";
 }
 
 export function PublicationForm({
   organizationId,
-  publication
+  publication,
+  categories
 }: {
   organizationId: string;
   publication?: BusinessPublication | null;
+  categories: Array<Pick<Tables<"publication_categories">, "id" | "name">>;
 }) {
   const [state, action] = useActionState(savePublicationAction, initialBusinessActionState);
   const schedule = publication?.publication_schedules?.[0]?.schedule_text ?? "";
@@ -65,10 +59,10 @@ export function PublicationForm({
         <Textarea id="description" name="description" required defaultValue={publication?.description ?? ""} />
       </FormField>
       <div className="grid gap-4 sm:grid-cols-2">
-        <FormField id="categorySlug" label="Категория ленты">
-          <Select id="categorySlug" name="categorySlug" defaultValue={publication?.category_slug ?? "services"} required>
-            {categoryOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+        <FormField id="categoryId" label="Категория ленты">
+          <Select id="categoryId" name="categoryId" defaultValue={publication?.category_id ?? categories[0]?.id ?? ""} required>
+            {categories.map((option) => (
+              <option key={option.id} value={option.id}>{option.name}</option>
             ))}
           </Select>
         </FormField>
