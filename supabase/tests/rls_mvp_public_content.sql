@@ -2,7 +2,7 @@ begin;
 
 set search_path = public, extensions;
 
-select plan(21);
+select plan(24);
 
 create or replace function pg_temp.statement_raises(statement text)
 returns boolean
@@ -15,6 +15,18 @@ exception when others then
   return true;
 end;
 $$;
+
+delete from public.inaccuracy_reports where reporter_fingerprint like 'seed-%';
+delete from public.important_announcements where created_by = '00000000-0000-0000-0000-000000000101';
+delete from public.publication_schedules
+where publication_id in (
+  select id from public.publications where author_id = '00000000-0000-0000-0000-000000000101'
+);
+delete from public.publications where author_id = '00000000-0000-0000-0000-000000000101';
+delete from public.menu_items where organization_id::text like '21000000-%';
+delete from public.menu_categories where organization_id::text like '21000000-%';
+delete from public.organization_members where organization_id::text like '21000000-%';
+delete from public.organizations where id::text like '21000000-%';
 
 insert into auth.users (id, email)
 values
@@ -140,6 +152,42 @@ select ok(
        values ('12000000-0000-0000-0000-000000000003', 'guest-one', 'wrong_time') $$
   ),
   'anon cannot report a hidden publication'
+);
+
+select ok(
+  not pg_temp.statement_raises(
+    $$ select public.create_inaccuracy_report(
+         '12000000-0000-0000-0000-000000000001',
+         'wrong_price',
+         'Wrong price comment',
+         'guest-rpc-one'
+       ) $$
+  ),
+  'anon can report an inaccuracy through rpc'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select public.create_inaccuracy_report(
+         '12000000-0000-0000-0000-000000000001',
+         'wrong_price',
+         'Duplicate comment',
+         'guest-rpc-one'
+       ) $$
+  ),
+  'rpc limits duplicate reports for same publication and reason'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select public.create_inaccuracy_report(
+         '12000000-0000-0000-0000-000000000003',
+         'wrong_price',
+         'Hidden publication comment',
+         'guest-rpc-hidden'
+       ) $$
+  ),
+  'rpc rejects reports for hidden publications'
 );
 
 select ok(

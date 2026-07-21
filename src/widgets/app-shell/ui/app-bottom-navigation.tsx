@@ -24,6 +24,7 @@ export function AppBottomNavigation() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               className={cn(
                 "flex min-h-12 items-center justify-center rounded-md px-2 text-center text-sm font-medium text-foreground-muted",
                 isActive && "bg-surface-muted text-foreground"

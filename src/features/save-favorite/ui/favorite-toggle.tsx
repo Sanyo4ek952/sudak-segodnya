@@ -8,14 +8,16 @@ import {
   writeFavorites,
   type FavoriteType
 } from "@/features/save-favorite/model/favorites";
+import { trackAnalyticsEvent, type AnalyticsEventInput } from "@/features/analytics/model/events";
 
 type FavoriteToggleProps = {
   id: string;
   type: FavoriteType;
   label: string;
+  analytics?: Omit<AnalyticsEventInput, "eventName">;
 };
 
-export function FavoriteToggle({ id, type, label }: FavoriteToggleProps) {
+export function FavoriteToggle({ id, type, label, analytics }: FavoriteToggleProps) {
   const [isFavorite, setIsFavorite] = useState(false);
   const key = useMemo(() => favoriteKey(type, id), [id, type]);
 
@@ -44,6 +46,10 @@ export function FavoriteToggle({ id, type, label }: FavoriteToggleProps) {
         const items = readFavorites();
         const exists = items.some((item) => favoriteKey(item.type, item.id) === key);
         writeFavorites(exists ? items.filter((item) => favoriteKey(item.type, item.id) !== key) : [...items, { id, type }]);
+
+        if (!exists && analytics) {
+          trackAnalyticsEvent({ eventName: "favorite_add", ...analytics });
+        }
       }}
     >
       {isFavorite ? "★" : "☆"}

@@ -2,7 +2,7 @@ begin;
 
 set search_path = public, extensions;
 
-select plan(41);
+select plan(43);
 
 create or replace function pg_temp.statement_raises(statement text)
 returns boolean
@@ -15,6 +15,18 @@ exception when others then
   return true;
 end;
 $$;
+
+delete from public.inaccuracy_reports where reporter_fingerprint like 'seed-%';
+delete from public.important_announcements where created_by = '00000000-0000-0000-0000-000000000101';
+delete from public.publication_schedules
+where publication_id in (
+  select id from public.publications where author_id = '00000000-0000-0000-0000-000000000101'
+);
+delete from public.publications where author_id = '00000000-0000-0000-0000-000000000101';
+delete from public.menu_items where organization_id::text like '21000000-%';
+delete from public.menu_categories where organization_id::text like '21000000-%';
+delete from public.organization_members where organization_id::text like '21000000-%';
+delete from public.organizations where id::text like '21000000-%';
 
 insert into auth.users (id, email)
 values
@@ -59,6 +71,7 @@ values
 
 insert into public.organization_members (organization_id, user_id, role)
 values
+  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'owner'),
   ('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'manager');
 
 insert into public.organization_applications (
@@ -325,6 +338,39 @@ select ok(
        where id = '20000000-0000-0000-0000-000000000001' $$
   ),
   'regular user cannot forge review fields'
+);
+
+select is(
+  (
+    select (public.update_member_organization_profile(
+      '10000000-0000-0000-0000-000000000001',
+      'Updated Active Org',
+      'Updated organization description',
+      'Updated address',
+      'Updated phone',
+      'Daily'
+    )).name
+  ),
+  'Updated Active Org'::text,
+  'member can update their active organization profile through the provided operation'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select * from public.update_member_organization_profile(
+         '10000000-0000-0000-0000-000000000001',
+         'Forged Active Org',
+         'Forged description',
+         'Forged address',
+         'Forged phone',
+         'Daily'
+       ) $$
+  ),
+  'non-member cannot update another organization profile through rpc'
 );
 
 set local role authenticated;

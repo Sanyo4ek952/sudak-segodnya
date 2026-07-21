@@ -676,6 +676,28 @@ export type Database = {
         Args: { application_id: string }
         Returns: Json
       }
+      create_inaccuracy_report: {
+        Args: {
+          comment: string
+          publication_id: string
+          reason: string
+          reporter_fingerprint: string
+        }
+        Returns: {
+          admin_comment: string | null
+          comment: string | null
+          created_at: string
+          id: string
+          publication_id: string
+          reason: string
+          reporter_fingerprint: string | null
+          reporter_user_id: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: Database["public"]["Enums"]["inaccuracy_report_status"]
+          updated_at: string
+        }
+      }
       is_admin: { Args: never; Returns: boolean }
       is_org_member: { Args: { org_id: string }; Returns: boolean }
       is_org_owner: { Args: { org_id: string }; Returns: boolean }
@@ -724,6 +746,34 @@ export type Database = {
           to: "organization_applications"
           isOneToOne: true
           isSetofReturn: false
+        }
+      }
+      update_member_organization_profile: {
+        Args: {
+          address: string
+          description: string
+          name: string
+          organization_id: string
+          phone: string
+          working_hours: string
+        }
+        Returns: {
+          address: string | null
+          category_id: string | null
+          contact_links: Json
+          cover_path: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          last_public_update_at: string | null
+          logo_path: string | null
+          name: string
+          phone: string | null
+          slug: string
+          status: Database["public"]["Enums"]["organization_status"]
+          updated_at: string
+          working_hours: string | null
         }
       }
     }

@@ -30,6 +30,7 @@ export function SectionNavigation({ label, items }: SectionNavigationProps) {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               className={cn(
                 "flex min-h-10 shrink-0 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium text-foreground-muted",
                 isActive && "border-primary bg-surface-muted text-foreground"

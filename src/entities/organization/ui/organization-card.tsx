@@ -15,7 +15,14 @@ export function OrganizationCard({ organization }: { organization: Organization 
       <CardContent className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <Badge variant="muted">{organizationCategoryLabels[organization.category]}</Badge>
-          <FavoriteToggle id={organization.id} type="organization" label={organization.name} />
+          <FavoriteToggle
+            id={organization.id}
+            type="organization"
+            label={organization.name}
+            analytics={{
+              organizationId: organization.id
+            }}
+          />
         </div>
         <div className="space-y-2">
           <Link href={`/organizations/${organization.slug}`} className="block">

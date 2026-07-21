@@ -1,4 +1,5 @@
 import { logoutAction } from "@/features/auth/model/actions";
+import { getBusinessOrganizations } from "@/features/business-cabinet/model/actions";
 import { getCurrentBusinessState } from "@/features/organization-application/model/actions";
 import { organizationApplicationStatusLabels } from "@/entities/organization-application/model/types";
 import { Badge } from "@/shared/ui/badge";
@@ -24,13 +25,16 @@ function statusVariant(status: keyof typeof organizationApplicationStatusLabels)
 }
 
 export default async function BusinessPage() {
-  const state = await getCurrentBusinessState();
+  const [state, organizations] = await Promise.all([
+    getCurrentBusinessState(),
+    getBusinessOrganizations()
+  ]);
 
   if (!state) {
     return null;
   }
 
-  const hasMemberships = state.memberships.length > 0;
+  const hasMemberships = organizations.length > 0;
   const application = state.application;
 
   return (
@@ -59,6 +63,25 @@ export default async function BusinessPage() {
         </Card>
       ) : null}
 
+      {state.profile?.role === "admin" ? (
+        <Card>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold">Администрирование</h2>
+                <p className="text-sm leading-6 text-foreground-muted">
+                  У аккаунта есть доступ к модерации заявок, публикаций и важных объявлений.
+                </p>
+              </div>
+              <Badge variant="info">Админ</Badge>
+            </div>
+            <LinkButton href="/admin" variant="outline" size="sm">
+              Открыть админ-панель
+            </LinkButton>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {hasMemberships ? (
         <Card>
           <CardContent className="space-y-3">
@@ -67,12 +90,20 @@ export default async function BusinessPage() {
               <Badge variant="success">Доступ открыт</Badge>
             </div>
             <div className="grid gap-3">
-              {state.memberships.map((membership) => (
+              {organizations.map((membership) => (
                 <div key={membership.id} className="rounded-md border border-border bg-background p-3">
                   <p className="font-medium">{membership.organizations?.name ?? "Организация"}</p>
                   <p className="text-sm leading-6 text-foreground-muted">
                     Роль: {membership.role === "owner" ? "владелец" : "менеджер"}
                   </p>
+                  <LinkButton
+                    href={`/business/${membership.organization_id}`}
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                  >
+                    Открыть кабинет
+                  </LinkButton>
                 </div>
               ))}
             </div>
