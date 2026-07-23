@@ -10,9 +10,16 @@ import { OrganizationCard } from "@/entities/organization/ui/organization-card";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ErrorState } from "@/shared/ui/error-state";
 import { SectionHeader } from "@/shared/ui/section-header";
+import { createPageMetadata } from "@/shared/lib/seo";
 import { OrganizationCatalogFilters } from "@/widgets/organization-catalog/ui/organization-catalog-filters";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = createPageMetadata({
+  title: "Каталог организаций Судака | Судак Сегодня",
+  description: "Кафе, музеи, кружки, экскурсии и городские сервисы Судака с актуальными публикациями.",
+  path: "/organizations"
+});
 
 type OrganizationsPageProps = {
   searchParams: Promise<OrganizationCatalogSearchParams>;

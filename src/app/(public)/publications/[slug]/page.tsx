@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent } from "@/shared/ui/card";
@@ -9,9 +10,14 @@ import { AnalyticsPageView } from "@/features/analytics/ui/analytics-page-view";
 import { PublicationActions } from "@/features/publication-actions/ui/publication-actions";
 import { InaccuracyReportDialog } from "@/features/report-inaccuracy/ui/inaccuracy-report-dialog";
 import { FavoriteToggle } from "@/features/save-favorite/ui/favorite-toggle";
-import { getPublicPublicationBySlug } from "@/entities/publication/api/publications";
+import {
+  getPublicPublicationBySlug,
+  getPublicPublicationSeoBySlug
+} from "@/entities/publication/api/publications";
 import { publicationTypeLabels } from "@/entities/publication/model/types";
 import { formatDate, formatDateTime } from "@/shared/lib/date";
+import { createEventJsonLd, createPublicationMetadata } from "@/shared/lib/seo";
+import { JsonLd } from "@/shared/ui/json-ld";
 
 type PublicationPageProps = {
   params: Promise<{
@@ -21,14 +27,29 @@ type PublicationPageProps = {
 
 export const dynamic = "force-dynamic";
 
-export default async function PublicationPage({ params }: PublicationPageProps) {
+export async function generateMetadata({ params }: PublicationPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const { publication } = await getPublicPublicationBySlug(slug);
+  const { publication } = await getPublicPublicationSeoBySlug(slug);
 
   if (!publication) {
     notFound();
   }
 
+  return createPublicationMetadata(publication);
+}
+
+export default async function PublicationPage({ params }: PublicationPageProps) {
+  const { slug } = await params;
+  const [{ publication }, { publication: seoPublication }] = await Promise.all([
+    getPublicPublicationBySlug(slug),
+    getPublicPublicationSeoBySlug(slug)
+  ]);
+
+  if (!publication || !seoPublication) {
+    notFound();
+  }
+
+  const eventJsonLd = createEventJsonLd(seoPublication);
   const dateLabel = publication.startsAt
     ? formatDateTime(publication.startsAt)
     : publication.validUntil
@@ -37,6 +58,7 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
 
   return (
     <article className="mx-auto max-w-3xl space-y-6">
+      {eventJsonLd ? <JsonLd data={eventJsonLd} /> : null}
       <AnalyticsPageView
         analytics={{
           eventName: "publication_view",

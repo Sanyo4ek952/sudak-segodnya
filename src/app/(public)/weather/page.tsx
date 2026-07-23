@@ -5,8 +5,15 @@ import { Badge } from "@/shared/ui/badge";
 import { LinkButton } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
+import { createPageMetadata } from "@/shared/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = createPageMetadata({
+  title: "Погода в Судаке | Судак Сегодня",
+  description: "Актуальная погода в Судаке: температура, осадки, ветер, почасовой и семидневный прогноз.",
+  path: "/weather"
+});
 
 function signedTemperature(value: number) {
   return `${value > 0 ? "+" : ""}${value}`;

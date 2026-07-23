@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent } from "@/shared/ui/card";
@@ -8,12 +9,20 @@ import { AnalyticsActionListener } from "@/features/analytics/ui/analytics-actio
 import { AnalyticsOnView } from "@/features/analytics/ui/analytics-on-view";
 import { AnalyticsPageView } from "@/features/analytics/ui/analytics-page-view";
 import { FavoriteToggle } from "@/features/save-favorite/ui/favorite-toggle";
-import { getPublicOrganizationBySlug } from "@/entities/organization/api/organizations";
+import {
+  getPublicOrganizationBySlug,
+  getPublicOrganizationSeoBySlug
+} from "@/entities/organization/api/organizations";
 import { OrganizationImage } from "@/entities/organization/ui/organization-image";
 import { organizationTypeLabels } from "@/entities/organization/model/types";
 import { listPublicPublicationsByOrganization } from "@/entities/publication/api/publications";
 import { PublicationCard } from "@/entities/publication/ui/publication-card";
 import { formatDate } from "@/shared/lib/date";
+import {
+  createOrganizationJsonLd,
+  createOrganizationMetadata
+} from "@/shared/lib/seo";
+import { JsonLd } from "@/shared/ui/json-ld";
 
 type OrganizationPageProps = {
   params: Promise<{
@@ -23,11 +32,25 @@ type OrganizationPageProps = {
 
 export const dynamic = "force-dynamic";
 
-export default async function OrganizationPage({ params }: OrganizationPageProps) {
+export async function generateMetadata({ params }: OrganizationPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const { organization } = await getPublicOrganizationBySlug(slug);
+  const { organization } = await getPublicOrganizationSeoBySlug(slug);
 
   if (!organization) {
+    notFound();
+  }
+
+  return createOrganizationMetadata(organization);
+}
+
+export default async function OrganizationPage({ params }: OrganizationPageProps) {
+  const { slug } = await params;
+  const [{ organization }, { organization: seoOrganization }] = await Promise.all([
+    getPublicOrganizationBySlug(slug),
+    getPublicOrganizationSeoBySlug(slug)
+  ]);
+
+  if (!organization || !seoOrganization) {
     notFound();
   }
 
@@ -36,6 +59,7 @@ export default async function OrganizationPage({ params }: OrganizationPageProps
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      <JsonLd data={createOrganizationJsonLd(seoOrganization)} />
       <AnalyticsPageView
         analytics={{
           eventName: "organization_view",

@@ -8,8 +8,15 @@ import {
   getActiveImportantAnnouncement,
   listPublicPublications
 } from "@/entities/publication/api/publications";
+import { createPageMetadata } from "@/shared/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = createPageMetadata({
+  title: "Судак Сегодня — события, объявления и организации",
+  description: "Городская лента актуальных событий, объявлений и организаций Судака.",
+  path: "/"
+});
 
 type HomePageProps = {
   searchParams: Promise<PublicationFilterSearchParams>;

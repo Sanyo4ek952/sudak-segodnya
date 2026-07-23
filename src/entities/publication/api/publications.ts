@@ -1,5 +1,9 @@
-import { createSupabaseServerClient } from "@/shared/api/supabase/server";
+import { createSupabasePublicServerClient } from "@/shared/api/supabase/public-server";
 import type { Database, Tables } from "@/shared/api/supabase/database.types";
+import {
+  getStableOpenGraphImage,
+  type PublicPublicationSeo
+} from "@/shared/lib/seo";
 import type { Publication, PublicationStatus } from "@/entities/publication/model/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -18,12 +22,36 @@ type PublicationRow = Tables<"publications"> & {
   media_assets: Array<Pick<Tables<"media_assets">, "bucket_id" | "storage_path" | "purpose" | "sort_order">>;
 };
 
+type SeoMediaAsset = Pick<
+  Tables<"media_assets">,
+  "storage_path" | "purpose" | "sort_order" | "visibility"
+>;
+
+type PublicationSeoRow = Pick<
+  Tables<"publications">,
+  "slug" | "type" | "title" | "description" | "starts_at" | "ends_at" | "place"
+> & {
+  organizations: Pick<Tables<"organizations">, "slug" | "name"> | null;
+  media_assets: SeoMediaAsset[];
+};
+
 const publicationSelect = `
   *,
   organizations(id, slug, name, address, phone),
   publication_categories(slug, name),
   publication_schedules(schedule_text, sort_order),
   media_assets(bucket_id, storage_path, purpose, sort_order)
+`;
+const publicationSeoSelect = `
+  slug,
+  type,
+  title,
+  description,
+  starts_at,
+  ends_at,
+  place,
+  organizations(slug, name),
+  media_assets(storage_path, purpose, sort_order, visibility)
 `;
 
 async function getImageUrl(
@@ -100,8 +128,16 @@ async function compactPublications(supabase: SupabaseClient<Database>, rows: Pub
   return publications.filter((publication): publication is Publication => Boolean(publication));
 }
 
+function getPublicationOpenGraphImage(mediaAssets: SeoMediaAsset[]) {
+  const imageAssets = mediaAssets
+    .filter((asset) => asset.visibility === "public" && asset.purpose === "publication_photo")
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  return imageAssets.map((asset) => getStableOpenGraphImage(asset.storage_path)).find(Boolean);
+}
+
 export async function listPublicPublications() {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabasePublicServerClient();
   const { data, error } = await supabase
     .from("publications")
     .select(publicationSelect)
@@ -116,7 +152,7 @@ export async function listPublicPublications() {
 }
 
 export async function getPublicPublicationBySlug(slug: string) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabasePublicServerClient();
   const { data, error } = await supabase
     .from("publications")
     .select(publicationSelect)
@@ -131,7 +167,7 @@ export async function getPublicPublicationBySlug(slug: string) {
 }
 
 export async function listPublicPublicationsByOrganization(organizationId: string) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabasePublicServerClient();
   const { data, error } = await supabase
     .from("publications")
     .select(publicationSelect)
@@ -147,7 +183,7 @@ export async function listPublicPublicationsByOrganization(organizationId: strin
 }
 
 export async function getActiveImportantAnnouncement() {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabasePublicServerClient();
   const { data, error } = await supabase
     .from("important_announcements")
     .select("id, title, description, active_until, publications(slug)")
@@ -173,6 +209,47 @@ export async function getActiveImportantAnnouncement() {
       activeUntil: data.active_until,
       publicationSlug: publication?.slug ?? null
     } satisfies ImportantAnnouncement,
+    error: null
+  };
+}
+
+export async function getPublicPublicationSeoBySlug(slug: string) {
+  const supabase = createSupabasePublicServerClient();
+  const { data, error } = await supabase
+    .from("publications")
+    .select(publicationSeoSelect)
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (error) {
+    return { publication: null, error: "Не удалось загрузить публикацию." };
+  }
+
+  if (!data) {
+    return { publication: null, error: null };
+  }
+
+  const publication = data as PublicationSeoRow;
+
+  if (!publication.organizations) {
+    return { publication: null, error: null };
+  }
+
+  return {
+    publication: {
+      slug: publication.slug,
+      type: publication.type,
+      title: publication.title,
+      description: publication.description,
+      startsAt: publication.starts_at,
+      endsAt: publication.ends_at,
+      place: publication.place,
+      image: getPublicationOpenGraphImage(publication.media_assets ?? []),
+      organization: {
+        slug: publication.organizations.slug,
+        name: publication.organizations.name
+      }
+    } satisfies PublicPublicationSeo,
     error: null
   };
 }

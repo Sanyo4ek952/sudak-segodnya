@@ -300,3 +300,26 @@
 - `npx tsc --noEmit`;
 - `npm run lint`;
 - ручная проверка фильтров, URL-навигации, пустых состояний, mobile и desktop.
+
+### Этап 4. SEO и корректные превью публичных ссылок
+
+Статус: выполнено 2026-07-23. Для главной, каталога, погоды, публичных страниц организации и публикации добавлены canonical URL, title, description и Open Graph metadata. Динамические metadata и JSON-LD читают только публичные данные анонимным Supabase-клиентом. JSON-LD `Organization` и `Event` строятся без персональных, выдуманных или непубличных данных; `Event` создаётся только для корректного временного диапазона. Private Storage и временные signed URL не используются в Open Graph.
+
+Входит:
+
+- безопасная нормализация локального и production origin через `NEXT_PUBLIC_SITE_URL`;
+- metadata и корректные публичные canonical URL для scoped-маршрутов;
+- стабильные внешние `https`-изображения для Open Graph только при наличии;
+- unit-тесты metadata, JSON-LD, временного диапазона и экранирования текста.
+
+Не входит:
+
+- sitemap, robots, Twitter Cards и metadata избранного;
+- изменение PWA-кеширования, UI, RLS, схемы БД, миграций и зависимостей.
+
+Проверки:
+
+- `npm test`;
+- `npx tsc --noEmit`;
+- `npm run lint`;
+- ручная проверка HTML metadata для главной, организации и публикации.

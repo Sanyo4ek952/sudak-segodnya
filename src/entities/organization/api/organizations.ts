@@ -1,5 +1,9 @@
-import { createSupabaseServerClient } from "@/shared/api/supabase/server";
+import { createSupabasePublicServerClient } from "@/shared/api/supabase/public-server";
 import type { Database, Tables } from "@/shared/api/supabase/database.types";
+import {
+  getStableOpenGraphImage,
+  type PublicOrganizationSeo
+} from "@/shared/lib/seo";
 import type {
   Organization,
   OrganizationTypeOption,
@@ -21,7 +25,17 @@ type MenuItemRow = Pick<
 
 type OrganizationTypeRow = Pick<Tables<"organization_types">, "id" | "slug" | "name">;
 
+type SeoMediaAsset = Pick<
+  Tables<"media_assets">,
+  "storage_path" | "purpose" | "sort_order" | "visibility"
+>;
+
+type OrganizationSeoRow = Pick<Tables<"organizations">, "slug" | "name" | "description"> & {
+  media_assets: SeoMediaAsset[];
+};
+
 const organizationSelect = "*, organization_types(slug, name), media_assets(bucket_id, storage_path, purpose, sort_order)";
+const organizationSeoSelect = "slug, name, description, media_assets(storage_path, purpose, sort_order, visibility)";
 
 async function getImageUrl(
   supabase: SupabaseClient<Database>,
@@ -86,6 +100,22 @@ function mapService(row: MenuItemRow): OrganizationService {
   };
 }
 
+function getOrganizationOpenGraphImage(mediaAssets: SeoMediaAsset[]) {
+  const assets = mediaAssets
+    .filter(
+      (asset) =>
+        asset.visibility === "public" &&
+        (asset.purpose === "organization_logo" || asset.purpose === "organization_cover")
+    )
+    .sort((a, b) => {
+      const purposeOrder = (asset: SeoMediaAsset) => (asset.purpose === "organization_logo" ? 0 : 1);
+
+      return purposeOrder(a) - purposeOrder(b) || a.sort_order - b.sort_order;
+    });
+
+  return assets.map((asset) => getStableOpenGraphImage(asset.storage_path)).find(Boolean);
+}
+
 async function getActivePublicationIdsByOrganization(
   supabase: SupabaseClient<Database>,
   organizationIds: string[]
@@ -112,7 +142,7 @@ async function getActivePublicationIdsByOrganization(
 }
 
 export async function listPublicOrganizationTypes() {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabasePublicServerClient();
   const { data, error } = await supabase
     .from("organization_types")
     .select("id, slug, name")
@@ -133,7 +163,7 @@ export async function listPublicOrganizationTypes() {
 }
 
 export async function listPublicOrganizations(filters: OrganizationCatalogFilters = {}) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabasePublicServerClient();
   let organizationQuery = supabase
     .from("organizations")
     .select(organizationSelect)
@@ -183,7 +213,7 @@ export async function listPublicOrganizations(filters: OrganizationCatalogFilter
 }
 
 export async function getPublicOrganizationBySlug(slug: string) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabasePublicServerClient();
   const { data, error } = await supabase
     .from("organizations")
     .select(organizationSelect)
@@ -212,6 +242,35 @@ export async function getPublicOrganizationBySlug(slug: string) {
 
   return {
     organization: await mapOrganization(supabase, data as OrganizationRow, services, activePublicationIds),
+    error: null
+  };
+}
+
+export async function getPublicOrganizationSeoBySlug(slug: string) {
+  const supabase = createSupabasePublicServerClient();
+  const { data, error } = await supabase
+    .from("organizations")
+    .select(organizationSeoSelect)
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (error) {
+    return { organization: null, error: "Не удалось загрузить организацию." };
+  }
+
+  if (!data) {
+    return { organization: null, error: null };
+  }
+
+  const organization = data as OrganizationSeoRow;
+
+  return {
+    organization: {
+      slug: organization.slug,
+      name: organization.name,
+      description: organization.description,
+      image: getOrganizationOpenGraphImage(organization.media_assets ?? [])
+    } satisfies PublicOrganizationSeo,
     error: null
   };
 }

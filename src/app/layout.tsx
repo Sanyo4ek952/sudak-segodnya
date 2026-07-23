@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { getSiteUrl } from "@/shared/lib/seo";
 import { AppShell } from "@/widgets/app-shell/ui/app-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: getSiteUrl(),
   title: "Судак Сегодня",
   description: "Городская лента актуальных событий, объявлений и организаций Судака.",
   manifest: "/manifest.webmanifest",
