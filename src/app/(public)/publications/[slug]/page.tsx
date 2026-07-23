@@ -2,12 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/shared/ui/badge";
-import { Button, LinkButton } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
 import { AnalyticsActionListener } from "@/features/analytics/ui/analytics-action-listener";
-import { AnalyticsLinkButton } from "@/features/analytics/ui/analytics-link-button";
 import { AnalyticsPageView } from "@/features/analytics/ui/analytics-page-view";
+import { PublicationActions } from "@/features/publication-actions/ui/publication-actions";
 import { InaccuracyReportDialog } from "@/features/report-inaccuracy/ui/inaccuracy-report-dialog";
 import { FavoriteToggle } from "@/features/save-favorite/ui/favorite-toggle";
 import { getPublicPublicationBySlug } from "@/entities/publication/api/publications";
@@ -35,9 +34,6 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
     : publication.validUntil
       ? `Актуально до ${formatDate(publication.validUntil)}`
       : publication.schedule ?? "Актуально";
-  const contactPhoneHref = publication.contactPhone
-    ? `tel:${publication.contactPhone.replace(/\D/g, "")}`
-    : null;
 
   return (
     <article className="mx-auto max-w-3xl space-y-6">
@@ -124,25 +120,7 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
 
       <section className="space-y-4">
         <SectionHeader title="Действия" />
-        <div className="grid gap-3 sm:grid-cols-3">
-          {contactPhoneHref ? <LinkButton href={contactPhoneHref}>Позвонить</LinkButton> : null}
-          <AnalyticsLinkButton
-            href={`https://yandex.ru/maps/?text=${encodeURIComponent(publication.place)}`}
-            variant="outline"
-            target="_blank"
-            rel="noreferrer"
-            analytics={{
-              eventName: "route_click",
-              organizationId: publication.organization.id,
-              publicationId: publication.id
-            }}
-          >
-            Маршрут
-          </AnalyticsLinkButton>
-          <Button type="button" variant="outline">
-            Поделиться
-          </Button>
-        </div>
+        <PublicationActions publication={publication} />
         <details className="rounded-lg border border-border bg-surface p-4">
           <summary className="cursor-pointer text-sm font-medium">Дополнительно</summary>
           <div className="mt-3 border-t border-border pt-3">
