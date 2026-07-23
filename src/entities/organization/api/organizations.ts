@@ -2,9 +2,11 @@ import { createSupabaseServerClient } from "@/shared/api/supabase/server";
 import type { Database, Tables } from "@/shared/api/supabase/database.types";
 import type {
   Organization,
-  OrganizationType,
+  OrganizationTypeOption,
   OrganizationService
 } from "@/entities/organization/model/types";
+import type { OrganizationCatalogFilters } from "@/entities/organization/model/catalog-filters";
+import { isOrganizationType } from "@/entities/organization/model/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type OrganizationRow = Tables<"organizations"> & {
@@ -17,21 +19,9 @@ type MenuItemRow = Pick<
   "id" | "title" | "description" | "price_text" | "is_available" | "sort_order"
 >;
 
-const organizationSelect = "*, organization_types(slug, name), media_assets(bucket_id, storage_path, purpose, sort_order)";
+type OrganizationTypeRow = Pick<Tables<"organization_types">, "id" | "slug" | "name">;
 
-function isOrganizationType(value: string | null | undefined): value is OrganizationType {
-  return (
-    value === "food" ||
-    value === "delivery" ||
-    value === "kids" ||
-    value === "culture" ||
-    value === "excursions" ||
-    value === "rental_entertainment" ||
-    value === "shops" ||
-    value === "services" ||
-    value === "administration"
-  );
-}
+const organizationSelect = "*, organization_types(slug, name), media_assets(bucket_id, storage_path, purpose, sort_order)";
 
 async function getImageUrl(
   supabase: SupabaseClient<Database>,
@@ -96,10 +86,21 @@ function mapService(row: MenuItemRow): OrganizationService {
   };
 }
 
-async function getActivePublicationIdsByOrganization() {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.from("publications").select("id, organization_id");
+async function getActivePublicationIdsByOrganization(
+  supabase: SupabaseClient<Database>,
+  organizationIds: string[]
+) {
   const ids = new Map<string, string[]>();
+
+  if (!organizationIds.length) {
+    return ids;
+  }
+
+  const { data } = await supabase
+    .from("publications")
+    .select("id, organization_id")
+    .eq("status", "published")
+    .in("organization_id", organizationIds);
 
   for (const publication of data ?? []) {
     const current = ids.get(publication.organization_id) ?? [];
@@ -110,19 +111,70 @@ async function getActivePublicationIdsByOrganization() {
   return ids;
 }
 
-export async function listPublicOrganizations() {
+export async function listPublicOrganizationTypes() {
   const supabase = await createSupabaseServerClient();
-  const [organizationsResult, publicationIds] = await Promise.all([
-    supabase.from("organizations").select(organizationSelect).order("name", { ascending: true }),
-    getActivePublicationIdsByOrganization()
-  ]);
+  const { data, error } = await supabase
+    .from("organization_types")
+    .select("id, slug, name")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    return { organizationTypes: [], error: "Не удалось загрузить категории организаций." };
+  }
+
+  const organizationTypes = ((data ?? []) as OrganizationTypeRow[]).flatMap((organizationType) =>
+    isOrganizationType(organizationType.slug)
+      ? [{ slug: organizationType.slug, name: organizationType.name } satisfies OrganizationTypeOption]
+      : []
+  );
+
+  return { organizationTypes, error: null };
+}
+
+export async function listPublicOrganizations(filters: OrganizationCatalogFilters = {}) {
+  const supabase = await createSupabaseServerClient();
+  let organizationQuery = supabase
+    .from("organizations")
+    .select(organizationSelect)
+    .eq("status", "active")
+    .order("name", { ascending: true });
+
+  if (filters.query) {
+    organizationQuery = organizationQuery.ilike("name", `%${filters.query}%`);
+  }
+
+  if (filters.type) {
+    const { data: organizationType, error: organizationTypeError } = await supabase
+      .from("organization_types")
+      .select("id")
+      .eq("slug", filters.type)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (organizationTypeError) {
+      return { organizations: [], error: "Не удалось загрузить каталог организаций." };
+    }
+
+    if (organizationType) {
+      organizationQuery = organizationQuery.eq("type_id", organizationType.id);
+    }
+  }
+
+  const organizationsResult = await organizationQuery;
 
   if (organizationsResult.error) {
     return { organizations: [], error: "Не удалось загрузить каталог организаций." };
   }
 
+  const organizationRows = (organizationsResult.data ?? []) as OrganizationRow[];
+  const publicationIds = await getActivePublicationIdsByOrganization(
+    supabase,
+    organizationRows.map((organization) => organization.id)
+  );
+
   const organizations = await Promise.all(
-    ((organizationsResult.data ?? []) as OrganizationRow[]).map((organization) =>
+    organizationRows.map((organization) =>
       mapOrganization(supabase, organization, [], publicationIds.get(organization.id) ?? [])
     )
   );

@@ -9,6 +9,11 @@ export type OrganizationType =
   | "services"
   | "administration";
 
+export type OrganizationTypeOption = {
+  slug: OrganizationType;
+  name: string;
+};
+
 export type OrganizationService = {
   id: string;
   title: string;
@@ -44,3 +49,7 @@ export const organizationTypeLabels: Record<OrganizationType, string> = {
   services: "Услуги",
   administration: "Администрация"
 };
+
+export function isOrganizationType(value: string | null | undefined): value is OrganizationType {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(organizationTypeLabels, value);
+}
