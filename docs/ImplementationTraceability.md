@@ -75,7 +75,7 @@
 | MEM-03 | Owner/manager permissions | Важно | owner-only access RPC | Проверено | pgTAP + owner/manager browser |
 | MEM-04 | Последний owner/role escalation | Важно | trigger + RPC checks | Проверено | negative pgTAP |
 | MEM-05 | Передача ownership | Позже | атомарная RPC + UI | Проверено | pgTAP + owner UI |
-| DATA-01 | Удалить Codex production fixture | Срочно | exact id+slug+name cleanup migration `20260723290000` | Выполнено | exact fixture удалён локально, owner-trigger включён; remote push ожидает явного разрешения |
+| DATA-01 | Удалить Codex production fixture | Срочно | exact id+slug+name cleanup migration `20260723290000` | Проверено | remote migration применена; публичный REST: 0 совпадений |
 | DATA-02 | Production/demo/test seeds | Важно | раздельные seed/fixtures | Проверено | source/config review |
 | SCHED-01 | Структурированное расписание | Позже | multi-slot weekday/time/timezone | Проверено | unit + pgTAP |
 | ANALYTICS-01 | Share/calendar события | Важно | enum/RPC/client actions | Проверено | pgTAP + browser event detail |
