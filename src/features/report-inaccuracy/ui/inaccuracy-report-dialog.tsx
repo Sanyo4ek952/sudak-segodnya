@@ -53,7 +53,7 @@ export function InaccuracyReportDialog({ publicationId }: InaccuracyReportDialog
         <form action={action} className="space-y-4">
           <input type="hidden" name="publicationId" value={publicationId} />
           <FormField id="inaccuracyReason" label="Причина">
-            <Select id="inaccuracyReason" name="reason" required defaultValue="wrong_time">
+            <Select id="inaccuracyReason" name="reason" required defaultValue={inaccuracyReasonOptions[0].value}>
               {inaccuracyReasonOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}

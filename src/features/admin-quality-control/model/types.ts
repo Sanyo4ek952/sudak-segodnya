@@ -21,11 +21,20 @@ export const adminPublicationFilters = [
 export const adminOrganizationFilters = ["active", "pending", "blocked", "all"] as const;
 export const adminReportFilters = ["new", "reviewing", "resolved", "rejected", "all"] as const;
 export const adminAnnouncementFilters = ["active", "draft", "expired", "hidden", "all"] as const;
+export const adminAuditFilters = [
+  "organization_applications",
+  "organizations",
+  "publications",
+  "organization_members",
+  "important_announcements",
+  "all"
+] as const;
 
 export type AdminPublicationFilter = (typeof adminPublicationFilters)[number];
 export type AdminOrganizationFilter = (typeof adminOrganizationFilters)[number];
 export type AdminReportFilter = (typeof adminReportFilters)[number];
 export type AdminAnnouncementFilter = (typeof adminAnnouncementFilters)[number];
+export type AdminAuditFilter = (typeof adminAuditFilters)[number];
 
 export type AdminPublicationListItem = Tables<"publications"> & {
   organizations: Pick<Tables<"organizations">, "id" | "name" | "slug" | "status"> | null;
@@ -33,6 +42,7 @@ export type AdminPublicationListItem = Tables<"publications"> & {
 
 export type AdminOrganizationListItem = Tables<"organizations"> & {
   organization_types: Pick<Tables<"organization_types">, "id" | "name" | "slug"> | null;
+  pending_type: Pick<Tables<"organization_types">, "id" | "name" | "slug"> | null;
 };
 
 export type AdminReportListItem = Tables<"inaccuracy_reports"> & {
@@ -43,6 +53,10 @@ export type AdminReportListItem = Tables<"inaccuracy_reports"> & {
 
 export type AdminAnnouncementListItem = Tables<"important_announcements"> & {
   publications: Pick<Tables<"publications">, "id" | "slug" | "title" | "status"> | null;
+};
+
+export type AdminAuditListItem = Tables<"audit_events"> & {
+  actor: Pick<Tables<"profiles">, "id" | "display_name"> | null;
 };
 
 export type PagedAdminResult<T> = {

@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { getAdminOrganizations } from "@/features/admin-quality-control/model/actions";
 import {
-  changeAdminOrganizationStatusAction,
-  getAdminOrganizations
-} from "@/features/admin-quality-control/model/actions";
+  OrganizationModerationActions,
+  OrganizationTypeReviewActions
+} from "@/features/admin-quality-control/ui/moderation-actions";
 import {
   adminOrganizationFilters,
   parseAdminPage,
@@ -14,7 +15,6 @@ import { LinkButton } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { SectionHeader } from "@/shared/ui/section-header";
-import { SubmitButton } from "@/shared/ui/submit-button";
 
 const filterLabels = {
   active: "Активные",
@@ -101,21 +101,22 @@ export default async function AdminOrganizationsPage({ searchParams }: AdminOrga
                   <p>Обновлена: {formatDateTime(organization.updated_at)}</p>
                   <p className="sm:col-span-2">Адрес: {organization.address ?? "не указан"}</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {organization.status !== "blocked" ? (
-                    <form action={changeAdminOrganizationStatusAction}>
-                      <input type="hidden" name="organizationId" value={organization.id} />
-                      <input type="hidden" name="status" value="blocked" />
-                      <SubmitButton variant="destructive" size="sm" pendingLabel="Блокируем...">Блокировать</SubmitButton>
-                    </form>
-                  ) : (
-                    <form action={changeAdminOrganizationStatusAction}>
-                      <input type="hidden" name="organizationId" value={organization.id} />
-                      <input type="hidden" name="status" value="active" />
-                      <SubmitButton size="sm" pendingLabel="Восстанавливаем...">Восстановить</SubmitButton>
-                    </form>
-                  )}
-                </div>
+                {organization.moderation_comment ? (
+                  <p className="rounded-md bg-surface-muted p-3 text-sm text-foreground-muted">
+                    {organization.moderation_comment}
+                  </p>
+                ) : null}
+                {organization.pending_type ? (
+                  <OrganizationTypeReviewActions
+                    organizationId={organization.id}
+                    currentType={organization.organization_types?.name ?? "Не указан"}
+                    pendingType={organization.pending_type.name}
+                  />
+                ) : null}
+                <OrganizationModerationActions
+                  organizationId={organization.id}
+                  status={organization.status}
+                />
               </CardContent>
             </Card>
           ))}

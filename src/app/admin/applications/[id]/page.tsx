@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { ApplicationReviewActions } from "@/features/admin-application-review/ui/application-review-actions";
 import { getAdminApplication } from "@/features/admin-application-review/model/actions";
+import { AuditHistory } from "@/features/admin-quality-control/ui/audit-history";
 import {
   getOrganizationApplicationStatusVariant,
   organizationApplicationStatusLabels
@@ -123,6 +124,13 @@ export default async function AdminApplicationPage({
           </CardContent>
         </Card>
       ) : null}
+
+      <Card>
+        <CardContent className="space-y-4">
+          <h2 className="text-lg font-semibold">История заявки</h2>
+          <AuditHistory events={application.auditEvents} />
+        </CardContent>
+      </Card>
 
       <ApplicationReviewActions applicationId={application.id} status={application.status} />
     </div>

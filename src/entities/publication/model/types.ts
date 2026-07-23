@@ -1,15 +1,6 @@
 export type PublicationType = "event" | "announcement" | "promo" | "regular" | "news";
 export type PublicationStatus = "published" | "cancelled" | "completed";
-export type PublicationCategory =
-  | "city"
-  | "kids"
-  | "food"
-  | "culture"
-  | "sport"
-  | "excursions"
-  | "rental"
-  | "shops"
-  | "services";
+export type PublicationCategory = string;
 export type PublicationFilter =
   | "all"
   | "today"
@@ -26,6 +17,14 @@ export type PublicationOrganization = {
   name: string;
 };
 
+export type PublicationSchedule = {
+  text: string;
+  weekday?: number;
+  startsAt?: string;
+  endsAt?: string;
+  timezone: string;
+};
+
 export type Publication = {
   id: string;
   slug: string;
@@ -38,6 +37,7 @@ export type Publication = {
   endsAt?: string;
   validUntil?: string;
   schedule?: string;
+  scheduleEntries: PublicationSchedule[];
   place: string;
   priceText: string;
   isFree: boolean;
@@ -46,6 +46,7 @@ export type Publication = {
   contactPhone?: string;
   ageLimit?: string;
   isPinned?: boolean;
+  publishedAt?: string;
   updatedAt: string;
 };
 
@@ -66,16 +67,4 @@ export const publicationFilterLabels: Record<PublicationFilter, string> = {
   culture: "культура",
   sport: "спорт и кружки",
   free: "бесплатно"
-};
-
-export const publicationCategoryLabels: Record<PublicationCategory, string> = {
-  city: "город",
-  kids: "детям",
-  food: "еда",
-  culture: "культура",
-  sport: "спорт и кружки",
-  excursions: "экскурсии",
-  rental: "прокат",
-  shops: "магазины",
-  services: "услуги"
 };

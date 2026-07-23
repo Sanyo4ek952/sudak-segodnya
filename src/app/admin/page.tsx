@@ -19,7 +19,7 @@ export default async function AdminPage() {
         description="Заявки организаций, модерация публикаций, сообщения о неточности и важные объявления."
         action={
           <LinkButton href="/admin/applications" variant="outline" size="sm">
-            Заявки
+            Заявки организаций
           </LinkButton>
         }
       />

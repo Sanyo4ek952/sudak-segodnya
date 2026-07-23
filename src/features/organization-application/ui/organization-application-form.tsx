@@ -25,7 +25,7 @@ import { Textarea } from "@/shared/ui/textarea";
 
 const fieldOrder: ApplicationFieldName[] = [
   "organizationName",
-  "categoryId",
+  "typeId",
   "description",
   "address",
   "phone",
@@ -38,7 +38,7 @@ type ApplicationFormValues = Record<ApplicationFieldName, string>;
 function getInitialFormValues(application: OrganizationApplication | null): ApplicationFormValues {
   return {
     organizationName: application?.organization_name ?? "",
-    categoryId: application?.type_id ?? "",
+    typeId: application?.type_id ?? "",
     description: application?.description ?? "",
     address: application?.address ?? "",
     phone: application?.phone ?? "",
@@ -168,11 +168,11 @@ export function OrganizationApplicationForm({
   const visibleServerState = hideServerFieldErrors ? initialApplicationFormState : serverState;
   const serverFieldErrors = visibleServerState.fieldErrors;
   const clientFieldErrors = clientState.fieldErrors;
-  const selectedCategory = categories.find((category) => category.id === formValues.categoryId);
+  const selectedType = categories.find((category) => category.id === formValues.typeId);
   const activeState = hasFieldErrors(clientFieldErrors) ? clientState : visibleServerState;
   const rawFieldErrors = activeState.fieldErrors;
-  const currentFieldErrors = selectedCategory
-    ? removeFieldError(rawFieldErrors, "categoryId")
+  const currentFieldErrors = selectedType
+    ? removeFieldError(rawFieldErrors, "typeId")
     : rawFieldErrors;
   const currentState: ApplicationFormState =
     activeState.fieldErrors && !hasFieldErrors(currentFieldErrors)
@@ -214,12 +214,12 @@ export function OrganizationApplicationForm({
     setClientState(hasFieldErrors(fieldErrors) ? errorState(fieldErrors) : initialApplicationFormState);
   }
 
-  function handleCategoryChange(value: string) {
-    const fieldErrors = removeFieldError(clientState.fieldErrors, "categoryId");
+  function handleTypeChange(value: string) {
+    const fieldErrors = removeFieldError(clientState.fieldErrors, "typeId");
 
-    updateFieldValue("categoryId", value);
+    updateFieldValue("typeId", value);
     setHideServerFieldErrors(true);
-    setTouchedFields((current) => ({ ...current, categoryId: true }));
+    setTouchedFields((current) => ({ ...current, typeId: true }));
     setClientState(hasFieldErrors(fieldErrors) ? errorState(fieldErrors) : initialApplicationFormState);
   }
 
@@ -254,7 +254,7 @@ export function OrganizationApplicationForm({
       noValidate
       onSubmit={handleFormSubmit}
     >
-      <input type="hidden" name="applicationId" value={application?.id ?? ""} />
+      <input type="hidden" name="applicationId" value={saveState.applicationId ?? application?.id ?? ""} />
       <fieldset disabled={readOnly} className="space-y-4 disabled:opacity-80">
         <FormField
           id="organizationName"
@@ -279,22 +279,22 @@ export function OrganizationApplicationForm({
           />
         </FormField>
         <FormField
-          id="categoryId"
+          id="typeId"
           label="Основной тип организации"
           hint="Выберите, чем организация является в первую очередь. Категории событий, акций и объявлений указываются отдельно при создании публикаций."
-          error={currentState.fieldErrors?.categoryId}
+          error={currentState.fieldErrors?.typeId}
         >
           <Select
-            id="categoryId"
-            name="categoryId"
+            id="typeId"
+            name="typeId"
             required
-            aria-invalid={Boolean(currentState.fieldErrors?.categoryId)}
-            aria-describedby={currentState.fieldErrors?.categoryId ? "categoryId-error" : "categoryId-hint"}
-            value={formValues.categoryId}
-            onBlur={(event) => showFieldError("categoryId", event.currentTarget.value)}
+            aria-invalid={Boolean(currentState.fieldErrors?.typeId)}
+            aria-describedby={currentState.fieldErrors?.typeId ? "typeId-error" : "typeId-hint"}
+            value={formValues.typeId}
+            onBlur={(event) => showFieldError("typeId", event.currentTarget.value)}
             onChange={(event) => {
               const value = event.currentTarget.value;
-              handleCategoryChange(value);
+              handleTypeChange(value);
             }}
           >
             <option value="" disabled>
@@ -306,8 +306,8 @@ export function OrganizationApplicationForm({
               </option>
             ))}
           </Select>
-          {selectedCategory ? (
-            <p className="text-sm leading-5 text-success">Выбрано: {selectedCategory.name}</p>
+          {selectedType ? (
+            <p className="text-sm leading-5 text-success">Выбрано: {selectedType.name}</p>
           ) : null}
         </FormField>
         <FormField
@@ -336,7 +336,6 @@ export function OrganizationApplicationForm({
           <Input
             id="address"
             name="address"
-            required
             minLength={applicationFieldValidationRules.address.minLength}
             maxLength={applicationFieldValidationRules.address.maxLength}
             aria-invalid={Boolean(currentState.fieldErrors?.address)}

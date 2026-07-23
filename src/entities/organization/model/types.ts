@@ -9,12 +9,18 @@ export type OrganizationType =
   | "services"
   | "administration";
 
+export type OrganizationTypeOption = {
+  slug: OrganizationType;
+  name: string;
+};
+
 export type OrganizationService = {
   id: string;
   title: string;
   description: string;
   priceText: string;
   isAvailable: boolean;
+  image?: string;
 };
 
 export type Organization = {
@@ -26,6 +32,9 @@ export type Organization = {
   address: string;
   phone: string;
   workingHours: string;
+  latitude?: number;
+  longitude?: number;
+  contactLinks: Array<{ label: string; href: string }>;
   logo?: string;
   cover?: string;
   services: OrganizationService[];
@@ -44,3 +53,7 @@ export const organizationTypeLabels: Record<OrganizationType, string> = {
   services: "Услуги",
   administration: "Администрация"
 };
+
+export function isOrganizationType(value: string | null | undefined): value is OrganizationType {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(organizationTypeLabels, value);
+}

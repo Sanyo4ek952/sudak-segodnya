@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { AnalyticsLink } from "@/features/analytics/ui/analytics-link";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent } from "@/shared/ui/card";
 import { formatDate, formatDateTime } from "@/shared/lib/date";
@@ -24,14 +25,19 @@ function getStatusLabel(publication: Publication) {
     return `до ${formatDate(publication.validUntil)}`;
   }
 
-  return publicationTypeLabels[publication.type];
+  return "Актуально";
 }
 
 export function PublicationCard({ publication }: { publication: Publication }) {
   const statusVariant = publication.status === "cancelled" ? "error" : publication.isFree ? "success" : "info";
+  const statusLabel = getStatusLabel(publication);
+  const typeLabel = publicationTypeLabels[publication.type];
+  const showTypeBadge = statusLabel.toLocaleLowerCase("ru-RU") !== typeLabel.toLocaleLowerCase("ru-RU");
+  const showPlace = (publication.type === "event" || publication.type === "regular") && publication.place;
+  const showPrice = publication.type !== "news" && publication.priceText;
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={publication.status === "cancelled" ? "overflow-hidden border-error" : "overflow-hidden"}>
       <Link href={`/publications/${publication.slug}`} className="block">
         {publication.image ? (
           <div className="relative aspect-[16/9] w-full bg-surface-muted">
@@ -42,8 +48,8 @@ export function PublicationCard({ publication }: { publication: Publication }) {
       <CardContent className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-wrap gap-2">
-            <Badge variant={statusVariant}>{getStatusLabel(publication)}</Badge>
-            <Badge variant="muted">{publicationTypeLabels[publication.type]}</Badge>
+            <Badge variant={statusVariant}>{statusLabel}</Badge>
+            {showTypeBadge ? <Badge variant="muted">{typeLabel}</Badge> : null}
           </div>
           <FavoriteToggle
             id={publication.id}
@@ -60,22 +66,39 @@ export function PublicationCard({ publication }: { publication: Publication }) {
             <h3 className="text-lg font-semibold leading-snug">{publication.title}</h3>
           </Link>
           <p className="line-clamp-2 text-sm leading-6 text-foreground-muted">{publication.description}</p>
+          {publication.status === "cancelled" ? (
+            <p className="text-sm font-medium text-error">
+              ⚠ Материал отменён организацией
+            </p>
+          ) : null}
         </div>
         <dl className="grid gap-2 text-sm text-foreground-muted">
-          <div className="flex gap-2">
-            <dt className="shrink-0 font-medium text-foreground">Где:</dt>
-            <dd>{publication.place}</dd>
-          </div>
-          <div className="flex gap-2">
-            <dt className="shrink-0 font-medium text-foreground">Цена:</dt>
-            <dd>{publication.priceText}</dd>
-          </div>
+          {showPlace ? (
+            <div className="flex gap-2">
+              <dt className="shrink-0 font-medium text-foreground">Где:</dt>
+              <dd>{publication.place}</dd>
+            </div>
+          ) : null}
+          {showPrice ? (
+            <div className="flex gap-2">
+              <dt className="shrink-0 font-medium text-foreground">Цена:</dt>
+              <dd>{publication.priceText}</dd>
+            </div>
+          ) : null}
           <div className="flex gap-2">
             <dt className="shrink-0 font-medium text-foreground">Кто:</dt>
             <dd>
-              <Link href={`/organizations/${publication.organization.slug}`} className="text-primary">
+              <AnalyticsLink
+                href={`/organizations/${publication.organization.slug}`}
+                className="text-primary"
+                analytics={{
+                  eventName: "organization_click",
+                  organizationId: publication.organization.id,
+                  publicationId: publication.id
+                }}
+              >
                 {publication.organization.name}
-              </Link>
+              </AnalyticsLink>
             </dd>
           </div>
         </dl>

@@ -92,6 +92,53 @@ export type Database = {
           },
         ]
       }
+      audit_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          new_data: Json | null
+          old_data: Json | null
+          organization_id: string | null
+          reason: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          organization_id?: string | null
+          reason?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          organization_id?: string | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       important_announcements: {
         Row: {
           active_from: string | null
@@ -490,6 +537,62 @@ export type Database = {
         }
         Relationships: []
       }
+      organization_member_invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          organization_id: string
+          revoked_at: string | null
+          role: Database["public"]["Enums"]["organization_member_role"]
+          status: Database["public"]["Enums"]["organization_invitation_status"]
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by: string
+          organization_id: string
+          revoked_at?: string | null
+          role?: Database["public"]["Enums"]["organization_member_role"]
+          status?: Database["public"]["Enums"]["organization_invitation_status"]
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          organization_id?: string
+          revoked_at?: string | null
+          role?: Database["public"]["Enums"]["organization_member_role"]
+          status?: Database["public"]["Enums"]["organization_invitation_status"]
+          token_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_member_invitations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -539,11 +642,15 @@ export type Database = {
           last_public_update_at: string | null
           latitude: number | null
           longitude: number | null
+          moderation_comment: string | null
           name: string
+          pending_type_id: string | null
           phone: string | null
           slug: string
           status: Database["public"]["Enums"]["organization_status"]
           type_id: string
+          type_change_requested_at: string | null
+          type_change_requested_by: string | null
           updated_at: string
           working_hours: string | null
         }
@@ -557,11 +664,15 @@ export type Database = {
           last_public_update_at?: string | null
           latitude?: number | null
           longitude?: number | null
+          moderation_comment?: string | null
           name: string
+          pending_type_id?: string | null
           phone?: string | null
           slug: string
           status?: Database["public"]["Enums"]["organization_status"]
           type_id: string
+          type_change_requested_at?: string | null
+          type_change_requested_by?: string | null
           updated_at?: string
           working_hours?: string | null
         }
@@ -575,17 +686,28 @@ export type Database = {
           last_public_update_at?: string | null
           latitude?: number | null
           longitude?: number | null
+          moderation_comment?: string | null
           name?: string
+          pending_type_id?: string | null
           phone?: string | null
           slug?: string
           status?: Database["public"]["Enums"]["organization_status"]
           type_id?: string
+          type_change_requested_at?: string | null
+          type_change_requested_by?: string | null
           updated_at?: string
           working_hours?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "organizations_type_id_fkey"
+            foreignKeyName: "organizations_pending_type_id_fkey"
+            columns: ["pending_type_id"]
+            isOneToOne: false
+            referencedRelation: "organization_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizations_category_id_fkey"
             columns: ["type_id"]
             isOneToOne: false
             referencedRelation: "organization_types"
@@ -662,6 +784,7 @@ export type Database = {
           schedule_text: string
           sort_order: number
           starts_at: string | null
+          timezone: string
           updated_at: string
           weekday: number | null
         }
@@ -673,6 +796,7 @@ export type Database = {
           schedule_text: string
           sort_order?: number
           starts_at?: string | null
+          timezone?: string
           updated_at?: string
           weekday?: number | null
         }
@@ -684,6 +808,7 @@ export type Database = {
           schedule_text?: string
           sort_order?: number
           starts_at?: string | null
+          timezone?: string
           updated_at?: string
           weekday?: number | null
         }
@@ -703,6 +828,7 @@ export type Database = {
           author_id: string
           cancelled_at: string | null
           category_id: string
+          client_request_id: string | null
           completed_at: string | null
           contact_phone: string | null
           created_at: string
@@ -715,6 +841,9 @@ export type Database = {
           place: string | null
           price_text: string | null
           published_at: string | null
+          publish_at: string | null
+          schedule_error: string | null
+          schedule_last_attempt_at: string | null
           slug: string
           sort_published_at: string | null
           starts_at: string | null
@@ -729,6 +858,7 @@ export type Database = {
           author_id?: string
           cancelled_at?: string | null
           category_id: string
+          client_request_id?: string | null
           completed_at?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -741,6 +871,9 @@ export type Database = {
           place?: string | null
           price_text?: string | null
           published_at?: string | null
+          publish_at?: string | null
+          schedule_error?: string | null
+          schedule_last_attempt_at?: string | null
           slug: string
           sort_published_at?: string | null
           starts_at?: string | null
@@ -755,6 +888,7 @@ export type Database = {
           author_id?: string
           cancelled_at?: string | null
           category_id?: string
+          client_request_id?: string | null
           completed_at?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -767,6 +901,9 @@ export type Database = {
           place?: string | null
           price_text?: string | null
           published_at?: string | null
+          publish_at?: string | null
+          schedule_error?: string | null
+          schedule_last_attempt_at?: string | null
           slug?: string
           sort_published_at?: string | null
           starts_at?: string | null
@@ -798,6 +935,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_organization_invitation: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      admin_moderate_organization: {
+        Args: {
+          p_organization_id: string
+          p_reason: string
+          p_status: Database["public"]["Enums"]["organization_status"]
+        }
+        Returns: Database["public"]["Tables"]["organizations"]["Row"]
+      }
+      admin_moderate_publication: {
+        Args: {
+          p_publication_id: string
+          p_reason: string
+          p_status: Database["public"]["Enums"]["publication_status"]
+        }
+        Returns: Database["public"]["Tables"]["publications"]["Row"]
+      }
       approve_organization_application: {
         Args: { application_id: string }
         Returns: Json
@@ -833,9 +990,53 @@ export type Database = {
         }
         Returns: boolean
       }
+      invite_organization_representative: {
+        Args: {
+          p_email: string
+          p_organization_id: string
+          p_role?: Database["public"]["Enums"]["organization_member_role"]
+        }
+        Returns: Json
+      }
+      list_organization_representatives: {
+        Args: { p_organization_id: string }
+        Returns: {
+          added_at: string
+          display_name: string | null
+          email: string | null
+          is_active: boolean
+          member_id: string
+          role: Database["public"]["Enums"]["organization_member_role"]
+          user_id: string
+        }[]
+      }
       make_organization_slug: {
         Args: { application_id: string; name: string }
         Returns: string
+      }
+      list_ranked_publication_ids: {
+        Args: {
+          p_cursor_id?: string | null
+          p_cursor_key?: number | null
+          p_cursor_rank?: number | null
+          p_filter?: string
+          p_limit?: number
+          p_reference?: string
+        }
+        Returns: {
+          publication_id: string
+          relevance_key: number
+          relevance_rank: number
+        }[]
+      }
+      manage_organization_representative: {
+        Args: {
+          p_action: string
+          p_member_id: string
+          p_organization_id: string
+          p_role?: Database["public"]["Enums"]["organization_member_role"] | null
+        }
+        Returns: Database["public"]["Tables"]["organization_members"]["Row"]
       }
       reject_organization_application: {
         Args: { admin_comment: string; application_id: string }
@@ -844,6 +1045,41 @@ export type Database = {
       request_organization_application_changes: {
         Args: { admin_comment: string; application_id: string }
         Returns: Json
+      }
+      review_organization_type_change: {
+        Args: {
+          p_approve: boolean
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: Database["public"]["Tables"]["organizations"]["Row"]
+      }
+      revoke_organization_invitation: {
+        Args: { p_invitation_id: string }
+        Returns: undefined
+      }
+      save_member_publication: {
+        Args: {
+          p_age_limit: string | null
+          p_category_id: string
+          p_client_request_id: string | null
+          p_contact_phone: string | null
+          p_description: string | null
+          p_ends_at: string | null
+          p_intent: string
+          p_is_free: boolean
+          p_organization_id: string
+          p_place: string | null
+          p_price_text: string | null
+          p_publication_id: string | null
+          p_publish_at: string | null
+          p_schedule_entries: Json
+          p_starts_at: string | null
+          p_title: string
+          p_type: Database["public"]["Enums"]["publication_type"]
+          p_valid_until: string | null
+        }
+        Returns: Database["public"]["Tables"]["publications"]["Row"]
       }
       submit_organization_application: {
         Args: { application_id: string }
@@ -873,6 +1109,25 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      track_public_analytics_event: {
+        Args: {
+          p_anonymous_id?: string | null
+          p_event_name: string
+          p_menu_item_id?: string | null
+          p_metadata?: Json
+          p_organization_id?: string | null
+          p_publication_id?: string | null
+        }
+        Returns: string
+      }
+      transfer_organization_ownership: {
+        Args: {
+          p_keep_current_owner?: boolean
+          p_organization_id: string
+          p_target_member_id: string
+        }
+        Returns: Json
+      }
       update_member_organization_profile: {
         Args: {
           address: string
@@ -901,15 +1156,40 @@ export type Database = {
           working_hours: string | null
         }
       }
+      update_member_organization_profile_v2: {
+        Args: {
+          p_address: string
+          p_contact_links: Json
+          p_description: string
+          p_latitude: number | null
+          p_longitude: number | null
+          p_name: string
+          p_organization_id: string
+          p_phone: string
+          p_type_id: string
+          p_working_hours: string
+        }
+        Returns: Database["public"]["Tables"]["organizations"]["Row"]
+      }
+      transition_member_publication: {
+        Args: {
+          p_publication_id: string
+          p_transition: string
+        }
+        Returns: Database["public"]["Tables"]["publications"]["Row"]
+      }
     }
     Enums: {
       analytics_event_name:
         | "organization_view"
+        | "organization_click"
         | "publication_view"
         | "phone_click"
         | "route_click"
         | "menu_open"
         | "favorite_add"
+        | "share"
+        | "calendar"
       important_announcement_status: "draft" | "active" | "expired" | "hidden"
       inaccuracy_report_reason:
         | "wrong_datetime"
@@ -932,6 +1212,7 @@ export type Database = {
         | "needs_changes"
         | "approved"
         | "rejected"
+      organization_invitation_status: "pending" | "accepted" | "revoked" | "expired"
       organization_member_role: "owner" | "manager"
       organization_status:
         | "draft"
@@ -1083,11 +1364,14 @@ export const Constants = {
     Enums: {
       analytics_event_name: [
         "organization_view",
+        "organization_click",
         "publication_view",
         "phone_click",
         "route_click",
         "menu_open",
         "favorite_add",
+        "share",
+        "calendar",
       ],
       important_announcement_status: ["draft", "active", "expired", "hidden"],
       inaccuracy_report_reason: [

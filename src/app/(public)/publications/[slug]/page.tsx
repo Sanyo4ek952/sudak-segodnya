@@ -1,18 +1,23 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Badge } from "@/shared/ui/badge";
-import { Button, LinkButton } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
 import { AnalyticsActionListener } from "@/features/analytics/ui/analytics-action-listener";
-import { AnalyticsLinkButton } from "@/features/analytics/ui/analytics-link-button";
 import { AnalyticsPageView } from "@/features/analytics/ui/analytics-page-view";
+import { PublicationActions } from "@/features/publication-actions/ui/publication-actions";
 import { InaccuracyReportDialog } from "@/features/report-inaccuracy/ui/inaccuracy-report-dialog";
 import { FavoriteToggle } from "@/features/save-favorite/ui/favorite-toggle";
-import { getPublicPublicationBySlug } from "@/entities/publication/api/publications";
+import {
+  getPublicPublicationBySlug,
+  getPublicPublicationSeoBySlug
+} from "@/entities/publication/api/publications";
 import { publicationTypeLabels } from "@/entities/publication/model/types";
 import { formatDate, formatDateTime } from "@/shared/lib/date";
+import { createEventJsonLd, createPublicationMetadata } from "@/shared/lib/seo";
+import { JsonLd } from "@/shared/ui/json-ld";
 
 type PublicationPageProps = {
   params: Promise<{
@@ -22,25 +27,47 @@ type PublicationPageProps = {
 
 export const dynamic = "force-dynamic";
 
-export default async function PublicationPage({ params }: PublicationPageProps) {
+function decodeSlug(slug: string) {
+  try {
+    return decodeURIComponent(slug);
+  } catch {
+    return slug;
+  }
+}
+
+export async function generateMetadata({ params }: PublicationPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const { publication } = await getPublicPublicationBySlug(slug);
+  const { publication } = await getPublicPublicationSeoBySlug(decodeSlug(slug));
 
   if (!publication) {
     notFound();
   }
 
+  return createPublicationMetadata(publication);
+}
+
+export default async function PublicationPage({ params }: PublicationPageProps) {
+  const { slug } = await params;
+  const decodedSlug = decodeSlug(slug);
+  const [{ publication }, { publication: seoPublication }] = await Promise.all([
+    getPublicPublicationBySlug(decodedSlug),
+    getPublicPublicationSeoBySlug(decodedSlug)
+  ]);
+
+  if (!publication || !seoPublication) {
+    notFound();
+  }
+
+  const eventJsonLd = createEventJsonLd(seoPublication);
   const dateLabel = publication.startsAt
-    ? formatDateTime(publication.startsAt)
+    ? `${formatDateTime(publication.startsAt)}${publication.endsAt ? ` — ${formatDateTime(publication.endsAt)}` : ""}`
     : publication.validUntil
       ? `Актуально до ${formatDate(publication.validUntil)}`
       : publication.schedule ?? "Актуально";
-  const contactPhoneHref = publication.contactPhone
-    ? `tel:${publication.contactPhone.replace(/\D/g, "")}`
-    : null;
 
   return (
     <article className="mx-auto max-w-3xl space-y-6">
+      {eventJsonLd ? <JsonLd data={eventJsonLd} /> : null}
       <AnalyticsPageView
         analytics={{
           eventName: "publication_view",
@@ -79,6 +106,14 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
           {publication.isFree ? <Badge variant="success">Бесплатно</Badge> : null}
           {publication.ageLimit ? <Badge variant="muted">{publication.ageLimit}</Badge> : null}
         </div>
+        {publication.status === "cancelled" ? (
+          <div className="rounded-md border border-error bg-error/10 p-4" role="status">
+            <p className="font-semibold text-error">⚠ Публикация отменена</p>
+            <p className="mt-1 text-sm leading-6 text-foreground">
+              Организация отменила событие или предложение. Информация сохранена до конца полезного периода.
+            </p>
+          </div>
+        ) : null}
         <div className="space-y-3">
           <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">{publication.title}</h1>
           <p className="text-base leading-7 text-foreground-muted">{publication.description}</p>
@@ -106,14 +141,18 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
               <dt className="font-medium text-foreground-muted">Когда</dt>
               <dd className="mt-1 text-base font-semibold">{publication.schedule ?? dateLabel}</dd>
             </div>
-            <div>
-              <dt className="font-medium text-foreground-muted">Где</dt>
-              <dd className="mt-1 text-base font-semibold">{publication.place}</dd>
-            </div>
-            <div>
-              <dt className="font-medium text-foreground-muted">Цена</dt>
-              <dd className="mt-1 text-base font-semibold">{publication.priceText}</dd>
-            </div>
+            {(publication.type === "event" || publication.type === "regular") && publication.place ? (
+              <div>
+                <dt className="font-medium text-foreground-muted">Где</dt>
+                <dd className="mt-1 text-base font-semibold">{publication.place}</dd>
+              </div>
+            ) : null}
+            {publication.type !== "news" && publication.priceText ? (
+              <div>
+                <dt className="font-medium text-foreground-muted">Цена</dt>
+                <dd className="mt-1 text-base font-semibold">{publication.priceText}</dd>
+              </div>
+            ) : null}
             <div>
               <dt className="font-medium text-foreground-muted">Обновлено</dt>
               <dd className="mt-1 text-base font-semibold">{formatDate(publication.updatedAt)}</dd>
@@ -124,25 +163,7 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
 
       <section className="space-y-4">
         <SectionHeader title="Действия" />
-        <div className="grid gap-3 sm:grid-cols-3">
-          {contactPhoneHref ? <LinkButton href={contactPhoneHref}>Позвонить</LinkButton> : null}
-          <AnalyticsLinkButton
-            href={`https://yandex.ru/maps/?text=${encodeURIComponent(publication.place)}`}
-            variant="outline"
-            target="_blank"
-            rel="noreferrer"
-            analytics={{
-              eventName: "route_click",
-              organizationId: publication.organization.id,
-              publicationId: publication.id
-            }}
-          >
-            Маршрут
-          </AnalyticsLinkButton>
-          <Button type="button" variant="outline">
-            Поделиться
-          </Button>
-        </div>
+        <PublicationActions publication={publication} />
         <details className="rounded-lg border border-border bg-surface p-4">
           <summary className="cursor-pointer text-sm font-medium">Дополнительно</summary>
           <div className="mt-3 border-t border-border pt-3">

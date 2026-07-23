@@ -1,10 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import Image from "next/image";
+import { useActionState, useEffect, useState } from "react";
 import { saveMenuCategoryAction, saveMenuItemAction } from "@/features/business-cabinet/model/actions";
 import { initialBusinessActionState } from "@/features/business-cabinet/model/types";
-import type { BusinessMenuCategory } from "@/features/business-cabinet/model/types";
-import type { Tables } from "@/shared/api/supabase/database.types";
+import type {
+  BusinessMenuCategory,
+  BusinessMenuItem
+} from "@/features/business-cabinet/model/types";
 import { BusinessActionMessage } from "@/features/business-cabinet/ui/business-action-message";
 import { FormField } from "@/shared/ui/form-field";
 import { Input } from "@/shared/ui/input";
@@ -54,13 +57,33 @@ export function MenuItemForm({
 }: {
   organizationId: string;
   categories: BusinessMenuCategory[];
-  item?: Tables<"menu_items">;
+  item?: BusinessMenuItem;
   compact?: boolean;
 }) {
   const [state, action] = useActionState(saveMenuItemAction, initialBusinessActionState);
+  const [localImageUrl, setLocalImageUrl] = useState<string>();
+  const imageUrl = state.imageRemoved
+    ? undefined
+    : state.imageUrl ?? localImageUrl ?? item?.imageUrl;
+
+  useEffect(() => {
+    return () => {
+      if (localImageUrl) {
+        URL.revokeObjectURL(localImageUrl);
+      }
+    };
+  }, [localImageUrl]);
+
+  function selectImage(file?: File) {
+    if (localImageUrl) {
+      URL.revokeObjectURL(localImageUrl);
+    }
+
+    setLocalImageUrl(file ? URL.createObjectURL(file) : undefined);
+  }
 
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} className="space-y-4" encType="multipart/form-data">
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="itemId" value={item?.id ?? ""} />
       <FormField id={`menuItemCategory-${item?.id ?? "new"}`} label="Раздел">
@@ -93,10 +116,47 @@ export function MenuItemForm({
         <input type="checkbox" name="isAvailable" defaultChecked={item?.is_available ?? true} />
         Доступно
       </label>
+      <div className="space-y-3">
+        {imageUrl ? (
+          <div className="relative aspect-[16/9] overflow-hidden rounded-md border border-border bg-surface-muted">
+            <Image src={imageUrl} alt="" fill unoptimized className="object-cover" />
+          </div>
+        ) : null}
+        <FormField id={`menuItemImage-${item?.id ?? "new"}`} label={imageUrl ? "Заменить изображение" : "Изображение"}>
+          <Input
+            id={`menuItemImage-${item?.id ?? "new"}`}
+            name="image"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => selectImage(event.target.files?.[0])}
+          />
+        </FormField>
+        <p className="text-xs leading-5 text-foreground-muted">
+          JPG, PNG или WebP до 5 МБ. Файл привязывается только к этой позиции.
+        </p>
+      </div>
       <BusinessActionMessage state={state} />
-      <SubmitButton size="sm" pendingLabel="Сохраняем...">
-        {compact ? "Сохранить позицию" : "Добавить позицию"}
-      </SubmitButton>
+      <div className="flex flex-wrap gap-2">
+        <SubmitButton
+          size="sm"
+          name="intent"
+          value={localImageUrl ? "upload-image" : "save"}
+          pendingLabel="Сохраняем..."
+        >
+          {compact ? "Сохранить позицию" : "Добавить позицию"}
+        </SubmitButton>
+        {imageUrl && item ? (
+          <SubmitButton
+            size="sm"
+            variant="outline"
+            name="intent"
+            value="remove-image"
+            pendingLabel="Удаляем..."
+          >
+            Удалить изображение
+          </SubmitButton>
+        ) : null}
+      </div>
     </form>
   );
 }

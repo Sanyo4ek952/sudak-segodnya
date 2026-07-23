@@ -1,4 +1,8 @@
+-- Local demo catalog. Never apply this file to production.
 begin;
+
+alter table public.organization_members
+  disable trigger protect_last_organization_owner_trigger;
 
 delete from public.important_announcements
 where id in (
@@ -101,6 +105,9 @@ where id = '00000000-0000-0000-0000-000000000101';
 
 delete from auth.users
 where id = '00000000-0000-0000-0000-000000000101';
+
+alter table public.organization_members
+  enable trigger protect_last_organization_owner_trigger;
 
 insert into public.organization_types (slug, name, description, sort_order, is_active)
 values
@@ -459,7 +466,7 @@ values
     (select id from public.publication_categories where slug = 'culture'),
     null,
     null,
-    null,
+    now() + interval '30 days',
     now() - interval '4 hours',
     'Дом культуры Судака',
     'Бесплатно',
@@ -585,7 +592,7 @@ values
     (select id from public.publication_categories where slug = 'culture'),
     null,
     null,
-    null,
+    now() + interval '30 days',
     now() - interval '3 hours 20 minutes',
     'Судакская крепость',
     'Вход по обычному билету',

@@ -1,15 +1,17 @@
 "use client";
 
 import { createSupabaseBrowserClient } from "@/shared/api/supabase/browser";
-import type { TablesInsert } from "@/shared/api/supabase/database.types";
 
 export const analyticsEventNames = [
   "organization_view",
+  "organization_click",
   "publication_view",
   "phone_click",
   "route_click",
   "menu_open",
-  "favorite_add"
+  "favorite_add",
+  "share",
+  "calendar"
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEventNames)[number];
@@ -50,18 +52,16 @@ export function trackAnalyticsEvent({
   }
 
   const anonymousId = getAnonymousId();
-  const payload: TablesInsert<"analytics_events"> = {
-    event_name: eventName,
-    organization_id: organizationId ?? null,
-    publication_id: publicationId ?? null,
-    menu_item_id: menuItemId ?? null,
-    anonymous_id: anonymousId,
-    metadata: {}
-  };
-
   void (async () => {
     try {
-      await createSupabaseBrowserClient().from("analytics_events").insert(payload);
+      await createSupabaseBrowserClient().rpc("track_public_analytics_event", {
+        p_event_name: eventName,
+        p_organization_id: organizationId ?? null,
+        p_publication_id: publicationId ?? null,
+        p_menu_item_id: menuItemId ?? null,
+        p_anonymous_id: anonymousId,
+        p_metadata: {}
+      });
     } catch {
       // Analytics must never block public UI.
     }

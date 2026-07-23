@@ -1,15 +1,12 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { z } from "zod";
+import {
+  createInaccuracyReportPayload,
+  inaccuracyReportSchema
+} from "@/features/report-inaccuracy/model/contract";
 import { createSupabaseServerClient } from "@/shared/api/supabase/server";
 import type { InaccuracyReportState } from "@/features/report-inaccuracy/model/types";
-
-const reportSchema = z.object({
-  publicationId: z.string().uuid(),
-  reason: z.enum(["wrong_time", "wrong_price", "cancelled", "wrong_address", "outdated", "other"]),
-  comment: z.string().trim().max(1000).optional()
-});
 
 function getString(formData: FormData, name: string) {
   const value = formData.get(name);
@@ -44,7 +41,7 @@ export async function submitInaccuracyReportAction(
   _state: InaccuracyReportState,
   formData: FormData
 ): Promise<InaccuracyReportState> {
-  const parsed = reportSchema.safeParse({
+  const parsed = inaccuracyReportSchema.safeParse({
     publicationId: getString(formData, "publicationId"),
     reason: getString(formData, "reason"),
     comment: getString(formData, "comment")
@@ -55,12 +52,10 @@ export async function submitInaccuracyReportAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("create_inaccuracy_report", {
-    publication_id: parsed.data.publicationId,
-    reason: parsed.data.reason,
-    comment: parsed.data.comment ?? "",
-    reporter_fingerprint: await getReporterFingerprint()
-  });
+  const { error } = await supabase.rpc(
+    "create_inaccuracy_report",
+    createInaccuracyReportPayload(parsed.data, await getReporterFingerprint())
+  );
 
   if (error) {
     return actionError("Сообщение уже отправлено или лимит обращений временно исчерпан.");

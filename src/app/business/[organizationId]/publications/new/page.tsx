@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { getPublicationCategories } from "@/features/business-cabinet/model/actions";
 import { PublicationForm } from "@/features/business-cabinet/ui/publication-form";
 import { Card, CardContent } from "@/shared/ui/card";
@@ -18,7 +19,12 @@ export default async function NewPublicationPage({ params }: NewPublicationPageP
       <SectionHeader as="h1" title="Новая публикация" description="Заполните основные данные материала." />
       <Card>
         <CardContent>
-          <PublicationForm organizationId={organizationId} categories={categories} />
+          <PublicationForm
+            organizationId={organizationId}
+            categories={categories}
+            draftPublicationId={randomUUID()}
+            clientRequestId={randomUUID()}
+          />
         </CardContent>
       </Card>
     </div>

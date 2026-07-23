@@ -26,10 +26,10 @@ Enums:
 - `publication_status`: `draft`, `scheduled`, `moderation`, `published`, `cancelled`, `completed`, `hidden`, `blocked`;
 - `media_asset_purpose`: `organization_logo`, `organization_cover`, `application_confirmation`, `publication_photo`, `menu_item_photo`;
 - `media_asset_visibility`: `public`, `private`;
-- `inaccuracy_report_reason`: `wrong_datetime`, `wrong_price`, `cancelled`, `wrong_address`, `outdated`, `other`;
+- `inaccuracy_report_reason`: `wrong_datetime` — «Неверная дата или время», `wrong_price`, `cancelled`, `wrong_address`, `outdated`, `other`;
 - `inaccuracy_report_status`: `new`, `reviewing`, `resolved`, `rejected`;
 - `important_announcement_status`: `draft`, `active`, `expired`, `hidden`;
-- `analytics_event_name`: `organization_view`, `publication_view`, `phone_click`, `route_click`, `menu_open`, `favorite_add`.
+- `analytics_event_name`: `organization_view`, `publication_view`, `organization_click`, `phone_click`, `route_click`, `menu_open`, `favorite_add`, `share`, `calendar`.
 
 Справочники:
 
@@ -57,7 +57,12 @@ Enums:
 
 Обязательные поля: `type_id references organization_types(id)`, `slug`, `name`, `status`, `created_by`.
 Обязательные для `active`: `description`, `phone`.
-Необязательные поля: `address`, `latitude`, `longitude`, `working_hours`, `contact_links jsonb`, `last_public_update_at`.
+Необязательные поля: `address`, `latitude`, `longitude`, `working_hours`,
+`contact_links jsonb`, `last_public_update_at`, `pending_type_id`,
+`type_change_requested_at`, `moderation_comment`.
+
+Изменение основного типа активной организации не применяется напрямую:
+запрашиваемый тип сохраняется в `pending_type_id` до решения администратора.
 
 Логотип и обложка не хранятся колонками в `organizations`. Они задаются строками `media_assets` с `purpose = organization_logo` и `purpose = organization_cover`.
 
@@ -67,6 +72,20 @@ Enums:
 
 Обязательные поля: `organization_id`, `user_id`, `role`, `is_active`.
 Ограничение: unique `(organization_id, user_id)`.
+
+Удалить или деактивировать последнего активного owner нельзя. Owner управляет
+представителями, manager — нет. Передача ownership выполняется атомарной RPC,
+которая повышает выбранного активного представителя и понижает текущего owner.
+
+### organization_member_invitations
+
+Назначение: безопасное приглашение представителя.
+
+Поля: `organization_id`, `email`, `role`, `token_hash`, `status`,
+`invited_by`, `accepted_by`, `expires_at`, `accepted_at`, `revoked_at`.
+
+Приглашение может создать и отозвать только owner. Принятие проверяет email
+авторизованного пользователя и не позволяет самостоятельно повысить роль.
 
 ### organization_applications
 
@@ -85,8 +104,23 @@ Enums:
 Обязательные поля: `organization_id`, `author_id`, `slug`, `type`, `status`, `title`, `category_id references publication_categories(id)`, `is_free`.
 Обязательные для публичного статуса: `description`, `price_text`.
 Для `event`: `starts_at`, `ends_at`.
-Для `announcement`, `promo`, `regular`: `valid_until`.
-Необязательные поля: `published_at`, `cancelled_at`, `completed_at`, `place`, `age_limit`, `contact_phone`, `sort_published_at`, `moderation_comment`.
+Для `announcement`, `promo`, `regular`, `news`: обязательный `valid_until`.
+Необязательные поля: `published_at`, `publish_at`, `cancelled_at`,
+`completed_at`, `place`, `age_limit`, `contact_phone`, `sort_published_at`,
+`moderation_comment`, `client_request_id`, `scheduling_error`,
+`scheduling_last_attempt_at`.
+
+Правила публичной полноты:
+
+- `event`: описание, категория, начало, окончание, место, цена либо
+  `is_free = true`;
+- `announcement`: описание, категория, `valid_until`, цена либо нейтральное
+  ценовое значение;
+- `promo`: описание или условия, категория, `valid_until`, цена или условия
+  предложения;
+- `regular`: описание, категория, `valid_until`, место, цена и хотя бы один
+  структурированный интервал;
+- `news`: описание, категория и `valid_until`.
 
 Фото публикации хранится в `media_assets` с `purpose = publication_photo`, `publication_id`.
 
@@ -94,8 +128,12 @@ Enums:
 
 Назначение: расписание регулярных занятий без усложнения основной таблицы публикаций.
 
-Обязательные поля: `publication_id`, `schedule_text`, `sort_order`.
+Обязательные поля: `publication_id`, `schedule_text`, `sort_order`, `timezone`.
 Необязательные поля: `weekday`, `starts_at time`, `ends_at time`.
+
+`weekday = null` означает ежедневный интервал. Один материал может иметь
+несколько интервалов. Для опубликованного регулярного материала одного
+свободного текста недостаточно: фильтры используют структурированные поля.
 
 ### menu_categories
 
@@ -155,6 +193,21 @@ Enums:
 Обязательные поля: `event_name`.
 Необязательные поля: `organization_id`, `publication_id`, `menu_item_id`, `user_id`, `anonymous_id`, `metadata`.
 
+Прямая вставка anon/authenticated запрещена. RPC
+`track_public_analytics_event` проверяет allowlist события, публичность
+сущности, согласованность идентификаторов и выполняет дедупликацию: просмотры
+в окне 30 минут, действия в окне 10 секунд при наличии user/anonymous id.
+
+### audit_events
+
+Назначение: неизменяемая прикладная история административных и owner-действий.
+
+Поля: `actor_id`, `action`, `entity_type`, `entity_id`, `organization_id`,
+`reason`, `before_data`, `after_data`, `created_at`.
+
+История создаётся серверными операциями и триггерами для заявок, модерации,
+организаций, публикаций, приглашений, ролей и передачи ownership.
+
 ## 4. RLS на уровне продукта
 
 Helper-функции:
@@ -167,7 +220,9 @@ Helper-функции:
 
 - anon/authenticated читают активные `organization_types` и `publication_categories`;
 - anon/authenticated читают `organizations.status = active`;
-- anon/authenticated читают `publications.status in (published, cancelled)` активных организаций, если публикация ещё актуальна;
+- anon/authenticated читают `publications.status in (published, cancelled)`
+  активных организаций, если публикация ещё актуальна по типозависимым
+  правилам;
 - anon/authenticated читают расписания только публичных публикаций;
 - anon/authenticated читают активные категории меню и доступные позиции меню активных организаций;
 - anon/authenticated читают активные важные объявления в пределах периода показа;
@@ -185,20 +240,38 @@ Helper-функции:
 - представитель читает и меняет только данные организаций, где есть активная строка `organization_members`;
 - `organization_id`, `author_id`, `uploaded_by` проверяются через RLS и серверные операции;
 - представитель не может выставлять административные статусы `hidden`, `blocked`, `approved`, `rejected`;
-- публикация в `published` проходит серверную проверку полноты данных и статуса организации.
+- прямой DML представителя ограничен собственными черновиками;
+- публикация и изменение опубликованного материала выполняются через
+  `save_member_publication`;
+- переходы `cancelled`, `completed` и восстановление доступны через
+  `transition_member_publication`;
+- публикация в `published` проходит серверную проверку полноты данных и
+  активного статуса организации.
 
 Администратор:
 
 - читает все MVP-таблицы;
 - меняет статусы заявок, организаций, публикаций, жалоб и важных объявлений;
-- админские действия выполняются через Server Actions или RPC, чтобы фиксировать служебные поля и timestamps.
+- админские изменения публикаций и организаций выполняются через
+  `admin_moderate_publication` и `admin_moderate_organization` с обязательной
+  причиной и записью `audit_events`.
 
 Storage:
 
 - buckets: `organization-images`, `publication-images`, `menu-images`, `application-confirmation-images`;
 - buckets остаются private;
 - публичное чтение `storage.objects` разрешается только если есть разрешённая строка `media_assets` и связанная сущность публична;
-- загрузка и удаление файлов выполняются серверными операциями после проверки membership или admin-прав.
+- вставка `media_assets` требует `uploaded_by = auth.uid()` и права на
+  связанную сущность;
+- update/delete существующей `media_assets` проверяет право на сущность, а не
+  совпадение с первоначальным uploader, поэтому manager может заменить
+  legacy/seed asset своей организации;
+- soft-deleted управляемые assets остаются видимыми представителю на время
+  cleanup;
+- загрузка и удаление файлов выполняются серверными операциями после проверки
+  membership или admin-прав;
+- orphan Storage object можно прочитать/удалить только по пути собственной
+  organization/publication/menu/application; чужой UUID в пути не даёт права.
 
 ## 5. Жизненные циклы
 
@@ -206,26 +279,64 @@ Storage:
 
 1. Пользователь создаёт `organization_applications` в `draft`.
 2. При отправке сервер проверяет обязательные поля и переводит статус в `submitted`.
-3. Администратор переводит заявку в `needs_changes`, `approved` или `rejected`.
-4. При `approved` создаётся `organizations.status = active` и `organization_members.role = owner`.
+3. Администратор переводит заявку в `needs_changes`, `approved` или `rejected`
+   и сохраняет комментарий/причину.
+4. `needs_changes` снова доступна заявителю для редактирования и повторной
+   отправки в `submitted`.
+5. При `approved` одна транзакция создаёт `organizations.status = active`,
+   `organization_members.role = owner`, связывает заявку с организацией и
+   записывает audit trail. Повторное одобрение не создаёт дубль.
 
 Публикация:
 
 1. Представитель создаёт черновик.
-2. Сервер проверяет membership, полноту данных и статус организации.
-3. Публикация становится `scheduled`, `moderation` или `published`.
-4. Публичные выборки дополнительно фильтруют истёкшие `ends_at` и `valid_until`.
-5. `cancelled` остаётся видимой с понятным статусом, пока полезна пользователю.
-6. `completed`, `hidden`, `blocked` не попадают в основную ленту.
+2. Server Action валидирует DTO и вызывает SECURITY DEFINER RPC
+   `save_member_publication`.
+3. RPC получает `author_id` только из `auth.uid()`, проверяет активное
+   membership, активность организации, принадлежность редактируемой записи,
+   type-specific поля и атомарно сохраняет расписание.
+4. Intent `draft` устанавливает `draft`, `publish` — `published`,
+   `schedule` — `scheduled` и `publish_at`; клиентский технический статус
+   отсутствует в контракте.
+5. При публикации сервер выставляет `published_at` и `sort_published_at`.
+   `client_request_id` делает повторный запрос идемпотентным.
+6. Фоновая функция безопасно переводит наступившие `scheduled` в `published`
+   и фиксирует ошибки. Отдельная cron-функция завершает истёкшие материалы.
+7. Публичные выборки всегда фильтруют истёкшие `ends_at` и `valid_until`;
+   фоновый процесс не является единственной защитой.
+8. Основной цикл: `draft → published → completed`, `published → cancelled`,
+   `published ↔ hidden`; `blocked` устанавливает администратор. Представитель
+   не может установить `hidden` или `blocked`.
+9. `cancelled` остаётся видимой с понятным статусом, пока полезна пользователю.
+10. `completed`, `hidden`, `blocked` не попадают в основную ленту.
 
 Изображения:
 
 1. Файл загружается в подходящий bucket.
 2. Сервер создаёт `media_assets` с нужным `purpose`.
-3. При замене старый asset получает `deleted_at` или удаляется, если запись была черновой.
-4. Опубликованные материалы лучше не ломать физическим удалением файлов.
+3. При замене предыдущая строка `media_assets` soft-delete, создаётся новая
+   связь, затем физически удаляется старый файл. Если новая связь не создалась,
+   старая строка восстанавливается.
+4. При ошибке после upload сервер пытается удалить новый непривязанный файл;
+   повторная безопасная очистка может выполняться по отсутствующим
+   `media_assets`.
 
-## 6. Границы MVP
+## 6. Временная семантика и публичная выдача
+
+`get_ranked_public_feed` работает в часовом поясе `Europe/Moscow`, принимает
+фильтр, snapshot и стабильный cursor.
+
+- событие относится к дню, если `[starts_at, ends_at]` пересекает границы дня;
+- регулярное занятие относится к дню при совпадении weekday (или ежедневном
+  интервале), наличии времени и действующем `valid_until`;
+- announcement, promo и news действуют до `valid_until`;
+- истёкшее значение исключается запросом независимо от статуса;
+- порядок: важность, событие сейчас, ближайшее событие, близкий срок,
+  регулярная активность дня, свежая новость, остальные актуальные материалы;
+- cursor включает значения стабильной сортировки и `id`, поэтому порции не
+  дублируются; snapshot защищает выдачу от сдвига при новых публикациях.
+
+## 7. Границы MVP
 
 Не включать в backend MVP:
 

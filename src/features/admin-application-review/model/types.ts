@@ -29,6 +29,10 @@ export type AdminApplicationListItem = ApplicationWithRelations & {
   applicant: Pick<Tables<"profiles">, "id" | "display_name" | "phone"> | null;
 };
 
+export type AdminApplicationDetail = AdminApplicationListItem & {
+  auditEvents: Tables<"audit_events">[];
+};
+
 export type AdminApplicationsResult = {
   items: AdminApplicationListItem[];
   page: number;

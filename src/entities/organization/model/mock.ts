@@ -10,6 +10,7 @@ export const organizations: Organization[] = [
     address: "ул. Ленина, 23",
     phone: "+7 978 000-21-23",
     workingHours: "Вт-вс, 10:00-18:00",
+    contactLinks: [],
     cover:
       "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=1200&q=80",
     services: [
@@ -33,6 +34,7 @@ export const organizations: Organization[] = [
     address: "Набережная, 8",
     phone: "+7 978 000-45-45",
     workingHours: "Ежедневно, 09:00-23:00",
+    contactLinks: [],
     logo:
       "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=400&q=80",
     cover:
@@ -65,6 +67,7 @@ export const organizations: Organization[] = [
     address: "ул. Морская, 14",
     phone: "+7 978 000-67-67",
     workingHours: "Пн-сб, 08:00-21:00",
+    contactLinks: [],
     cover:
       "https://images.unsplash.com/photo-1519311965067-36d3e5f33d39?auto=format&fit=crop&w=1200&q=80",
     services: [
@@ -88,6 +91,7 @@ export const organizations: Organization[] = [
     address: "старт от автостанции Судак",
     phone: "+7 978 000-88-11",
     workingHours: "По расписанию экскурсий",
+    contactLinks: [],
     cover:
       "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80",
     services: [

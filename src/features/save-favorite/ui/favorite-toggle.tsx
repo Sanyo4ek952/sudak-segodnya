@@ -45,7 +45,11 @@ export function FavoriteToggle({ id, type, label, analytics }: FavoriteTogglePro
       onClick={() => {
         const items = readFavorites();
         const exists = items.some((item) => favoriteKey(item.type, item.id) === key);
-        writeFavorites(exists ? items.filter((item) => favoriteKey(item.type, item.id) !== key) : [...items, { id, type }]);
+        writeFavorites(
+          exists
+            ? items.filter((item) => favoriteKey(item.type, item.id) !== key)
+            : [...items, { id, type, label, savedAt: new Date().toISOString() }]
+        );
 
         if (!exists && analytics) {
           trackAnalyticsEvent({ eventName: "favorite_add", ...analytics });

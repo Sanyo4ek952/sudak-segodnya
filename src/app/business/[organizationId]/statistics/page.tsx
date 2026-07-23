@@ -22,8 +22,11 @@ export default async function StatisticsPage({ params }: StatisticsPageProps) {
     { label: "Просмотры публикаций", value: analytics.publicationViews },
     { label: "Звонки", value: analytics.phoneClicks },
     { label: "Маршруты", value: analytics.routeClicks },
+    { label: "Переходы к организации", value: analytics.organizationClicks },
     { label: "Открытия меню", value: analytics.menuOpens },
-    { label: "Добавления в избранное", value: analytics.favoriteAdds }
+    { label: "Добавления в избранное", value: analytics.favoriteAdds },
+    { label: "Поделиться", value: analytics.shares },
+    { label: "Добавления в календарь", value: analytics.calendars }
   ];
 
   return (
@@ -31,7 +34,7 @@ export default async function StatisticsPage({ params }: StatisticsPageProps) {
       <SectionHeader
         as="h1"
         title="Статистика"
-        description="Базовые события MVP без сложной аналитики и персональных данных."
+        description="События за последние 30 дней. Повторные просмотры и действия дедуплицируются в разумном окне; это ориентировочные, а не рекламные показатели."
       />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {metrics.map((metric) => (
