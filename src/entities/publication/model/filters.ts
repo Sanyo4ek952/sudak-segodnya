@@ -1,6 +1,12 @@
 import { addDays, isSameLocalDay } from "@/shared/lib/date";
 import type { Publication, PublicationFilter } from "@/entities/publication/model/types";
 
+type PublicationFilterSearchParam = string | string[] | undefined;
+
+export type PublicationFilterSearchParams = {
+  filter?: PublicationFilterSearchParam;
+};
+
 export const filterItems: Array<{ value: PublicationFilter; label: string }> = [
   { value: "all", label: "всё" },
   { value: "today", label: "сегодня" },
@@ -11,6 +17,20 @@ export const filterItems: Array<{ value: PublicationFilter; label: string }> = [
   { value: "sport", label: "спорт и кружки" },
   { value: "free", label: "бесплатно" }
 ];
+
+function isPublicationFilter(value: string): value is PublicationFilter {
+  return filterItems.some((item) => item.value === value);
+}
+
+export function normalizePublicationFilter({ filter }: PublicationFilterSearchParams): PublicationFilter {
+  if (Array.isArray(filter)) {
+    return "all";
+  }
+
+  const value = filter?.trim();
+
+  return value && isPublicationFilter(value) ? value : "all";
+}
 
 export function filterPublications(
   publications: Publication[],

@@ -1,6 +1,3 @@
-"use client";
-
-import { useMemo, useState } from "react";
 import { PublicationCard } from "@/entities/publication/ui/publication-card";
 import { filterPublications } from "@/entities/publication/model/filters";
 import type { ImportantAnnouncement } from "@/entities/publication/api/publications";
@@ -18,15 +15,14 @@ import { formatDate } from "@/shared/lib/date";
 type PublicFeedProps = {
   publications: Publication[];
   importantAnnouncement: ImportantAnnouncement | null;
+  filter: PublicationFilter;
   error?: string | null;
 };
 
-export function PublicFeed({ publications, importantAnnouncement, error = null }: PublicFeedProps) {
-  const [filter, setFilter] = useState<PublicationFilter>("all");
-  const filteredPublications = useMemo(
-    () => filterPublications(publications, filter),
-    [filter, publications]
-  );
+export function PublicFeed({ publications, importantAnnouncement, filter, error = null }: PublicFeedProps) {
+  const filteredPublications = filterPublications(publications, filter);
+  const allPublications = filter === "all" ? filteredPublications : filterPublications(publications, "all");
+  const isFilteredEmpty = filter !== "all" && allPublications.length > 0;
 
   return (
     <section className="space-y-5">
@@ -56,7 +52,7 @@ export function PublicFeed({ publications, importantAnnouncement, error = null }
 
       <div className="space-y-4">
         <SectionHeader title="Городская лента" description="Актуальное на сегодня и ближайшие дни." />
-        <FeedFilters value={filter} onChange={setFilter} />
+        <FeedFilters value={filter} />
       </div>
 
       {error ? (
@@ -67,6 +63,13 @@ export function PublicFeed({ publications, importantAnnouncement, error = null }
             <PublicationCard key={publication.id} publication={publication} />
           ))}
         </div>
+      ) : isFilteredEmpty ? (
+        <EmptyState
+          title="По этому фильтру пока ничего нет"
+          description="Попробуйте выбрать другой фильтр или вернуться ко всем публикациям."
+          actionLabel="Сбросить фильтр"
+          actionHref="/"
+        />
       ) : (
         <EmptyState
           title="Публикаций пока нет"

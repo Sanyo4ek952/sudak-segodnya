@@ -1,13 +1,22 @@
 import { PublicFeed } from "@/widgets/public-feed/ui/public-feed";
 import { WeatherCompact } from "@/widgets/weather/ui/weather-compact";
 import {
+  normalizePublicationFilter,
+  type PublicationFilterSearchParams
+} from "@/entities/publication/model/filters";
+import {
   getActiveImportantAnnouncement,
   listPublicPublications
 } from "@/entities/publication/api/publications";
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+type HomePageProps = {
+  searchParams: Promise<PublicationFilterSearchParams>;
+};
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const filter = normalizePublicationFilter(await searchParams);
   const [{ publications, error: publicationsError }, { announcement }] = await Promise.all([
     listPublicPublications(),
     getActiveImportantAnnouncement()
@@ -27,7 +36,12 @@ export default async function HomePage() {
         </div>
       </section>
       <WeatherCompact />
-      <PublicFeed publications={publications} importantAnnouncement={announcement} error={publicationsError} />
+      <PublicFeed
+        publications={publications}
+        importantAnnouncement={announcement}
+        filter={filter}
+        error={publicationsError}
+      />
     </div>
   );
 }
