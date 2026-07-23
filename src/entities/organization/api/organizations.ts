@@ -21,7 +21,11 @@ type OrganizationRow = Tables<"organizations"> & {
 type MenuItemRow = Pick<
   Tables<"menu_items">,
   "id" | "title" | "description" | "price_text" | "is_available" | "sort_order"
->;
+> & {
+  media_assets: Array<
+    Pick<Tables<"media_assets">, "bucket_id" | "storage_path" | "purpose" | "sort_order">
+  >;
+};
 
 type OrganizationTypeRow = Pick<Tables<"organization_types">, "id" | "slug" | "name">;
 
@@ -34,7 +38,7 @@ type OrganizationSeoRow = Pick<Tables<"organizations">, "slug" | "name" | "descr
   media_assets: SeoMediaAsset[];
 };
 
-const organizationSelect = "*, organization_types(slug, name), media_assets(bucket_id, storage_path, purpose, sort_order)";
+const organizationSelect = "*, organization_types:organization_types!organizations_category_id_fkey(slug, name), media_assets(bucket_id, storage_path, purpose, sort_order)";
 const organizationSeoSelect = "slug, name, description, media_assets(storage_path, purpose, sort_order, visibility)";
 
 async function getImageUrl(
@@ -70,6 +74,19 @@ async function mapOrganization(
     .sort((a, b) => a.sort_order - b.sort_order);
   const logo = sortedAssets.find((asset) => asset.purpose === "organization_logo");
   const cover = sortedAssets.find((asset) => asset.purpose === "organization_cover");
+  const contactLinks = typeof row.contact_links === "object"
+    && row.contact_links !== null
+    && !Array.isArray(row.contact_links)
+    ? [
+        ["Сайт", row.contact_links.website],
+        ["Telegram", row.contact_links.telegram],
+        ["ВКонтакте", row.contact_links.vk]
+      ].flatMap(([label, href]) => (
+        typeof href === "string" && href.startsWith("http")
+          ? [{ label: String(label), href }]
+          : []
+      ))
+    : [];
 
   return {
     id: row.id,
@@ -82,6 +99,9 @@ async function mapOrganization(
     address: row.address ?? "Судак",
     phone: row.phone ?? "",
     workingHours: row.working_hours ?? "Уточняйте у организации",
+    latitude: row.latitude ?? undefined,
+    longitude: row.longitude ?? undefined,
+    contactLinks,
     logo: await getImageUrl(supabase, logo),
     cover: await getImageUrl(supabase, cover),
     services,
@@ -90,13 +110,21 @@ async function mapOrganization(
   };
 }
 
-function mapService(row: MenuItemRow): OrganizationService {
+async function mapService(
+  supabase: SupabaseClient<Database>,
+  row: MenuItemRow
+): Promise<OrganizationService> {
+  const imageAsset = row.media_assets
+    .filter((asset) => asset.purpose === "menu_item_photo")
+    .sort((a, b) => a.sort_order - b.sort_order)[0];
+
   return {
     id: row.id,
     title: row.title,
     description: row.description ?? "",
     priceText: row.price_text ?? "Уточняйте",
-    isAvailable: row.is_available
+    isAvailable: row.is_available,
+    image: await getImageUrl(supabase, imageAsset)
   };
 }
 
@@ -231,17 +259,70 @@ export async function getPublicOrganizationBySlug(slug: string) {
   const [{ data: menuItems }, { data: publications }] = await Promise.all([
     supabase
       .from("menu_items")
-      .select("id, title, description, price_text, is_available, sort_order")
+      .select(`
+        id,
+        title,
+        description,
+        price_text,
+        is_available,
+        sort_order,
+        media_assets(bucket_id, storage_path, purpose, sort_order)
+      `)
       .eq("organization_id", data.id)
       .order("sort_order", { ascending: true }),
     supabase.from("publications").select("id").eq("organization_id", data.id)
   ]);
 
-  const services = ((menuItems ?? []) as MenuItemRow[]).map(mapService);
+  const services = await Promise.all(
+    ((menuItems ?? []) as MenuItemRow[]).map((item) => mapService(supabase, item))
+  );
   const activePublicationIds = (publications ?? []).map((publication) => publication.id);
 
   return {
     organization: await mapOrganization(supabase, data as OrganizationRow, services, activePublicationIds),
+    error: null
+  };
+}
+
+export async function listPublicOrganizationsByIds(ids: string[]) {
+  const uniqueIds = Array.from(new Set(ids)).slice(0, 100);
+
+  if (!uniqueIds.length) {
+    return { organizations: [], error: null };
+  }
+
+  const supabase = createSupabasePublicServerClient();
+  const { data, error } = await supabase
+    .from("organizations")
+    .select(organizationSelect)
+    .in("id", uniqueIds);
+
+  if (error) {
+    return { organizations: [], error: "Не удалось загрузить сохранённые организации." };
+  }
+
+  const rows = (data ?? []) as OrganizationRow[];
+  const activePublicationIds = await getActivePublicationIdsByOrganization(
+    supabase,
+    rows.map((organization) => organization.id)
+  );
+  const mapped = await Promise.all(
+    rows.map((organization) =>
+      mapOrganization(
+        supabase,
+        organization,
+        [],
+        activePublicationIds.get(organization.id) ?? []
+      )
+    )
+  );
+  const byId = new Map(mapped.map((organization) => [organization.id, organization]));
+
+  return {
+    organizations: uniqueIds.flatMap((id) => {
+      const organization = byId.get(id);
+      return organization ? [organization] : [];
+    }),
     error: null
   };
 }

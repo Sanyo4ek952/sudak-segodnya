@@ -16,6 +16,9 @@ exception when others then
 end;
 $$;
 
+alter table public.organization_members
+  disable trigger protect_last_organization_owner_trigger;
+
 delete from public.inaccuracy_reports where reporter_fingerprint like 'seed-%';
 delete from public.important_announcements where created_by = '00000000-0000-0000-0000-000000000101';
 delete from public.publication_schedules
@@ -27,6 +30,9 @@ delete from public.menu_items where organization_id::text like '21000000-%';
 delete from public.menu_categories where organization_id::text like '21000000-%';
 delete from public.organization_members where organization_id::text like '21000000-%';
 delete from public.organizations where id::text like '21000000-%';
+
+alter table public.organization_members
+  enable trigger protect_last_organization_owner_trigger;
 
 insert into auth.users (id, email)
 values
@@ -59,11 +65,14 @@ set name = excluded.name,
     sort_order = excluded.sort_order,
     is_active = true;
 
-insert into public.organizations (id, slug, name, description, phone, status, type_id, created_by)
+insert into public.organizations (
+  id, slug, name, description, phone, status, type_id, created_by,
+  moderation_comment
+)
 values
-  ('11000000-0000-0000-0000-000000000001', 'content-active-org', 'Content Active Org', 'Description', 'Phone', 'active', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000013'),
-  ('11000000-0000-0000-0000-000000000002', 'content-blocked-org', 'Content Blocked Org', 'Description', 'Phone', 'blocked', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000013'),
-  ('11000000-0000-0000-0000-000000000003', 'content-member-org', 'Content Member Org', 'Description', 'Phone', 'pending', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000013');
+  ('11000000-0000-0000-0000-000000000001', 'content-active-org', 'Content Active Org', 'Description', 'Phone', 'active', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000013', null),
+  ('11000000-0000-0000-0000-000000000002', 'content-blocked-org', 'Content Blocked Org', 'Description', 'Phone', 'blocked', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000013', 'Blocked fixture'),
+  ('11000000-0000-0000-0000-000000000003', 'content-member-org', 'Content Member Org', 'Description', 'Phone', 'pending', '30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000013', null);
 
 insert into public.organization_members (organization_id, user_id, role)
 values ('11000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000011', 'manager');
@@ -82,15 +91,17 @@ insert into public.publications (
   ends_at,
   valid_until,
   published_at,
+  place,
   price_text,
-  sort_published_at
+  sort_published_at,
+  moderation_comment
 )
 values
-  ('12000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013', 'visible-event', 'event', 'published', 'Visible Event', 'Description', (select id from public.publication_categories where slug = 'culture'), now() + interval '1 hour', now() + interval '3 hours', null, now(), 'Бесплатно', now()),
-  ('12000000-0000-0000-0000-000000000002', '11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013', 'expired-event', 'event', 'published', 'Expired Event', 'Description', (select id from public.publication_categories where slug = 'culture'), now() - interval '3 hours', now() - interval '1 hour', null, now() - interval '1 day', 'Бесплатно', now() - interval '1 day'),
-  ('12000000-0000-0000-0000-000000000003', '11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013', 'hidden-event', 'event', 'hidden', 'Hidden Event', 'Description', (select id from public.publication_categories where slug = 'culture'), now() + interval '1 hour', now() + interval '3 hours', null, now(), 'Бесплатно', now()),
-  ('12000000-0000-0000-0000-000000000004', '11000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000013', 'blocked-org-event', 'event', 'published', 'Blocked Org Event', 'Description', (select id from public.publication_categories where slug = 'culture'), now() + interval '1 hour', now() + interval '3 hours', null, now(), 'Бесплатно', now()),
-  ('12000000-0000-0000-0000-000000000005', '11000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000011', 'member-draft', 'news', 'draft', 'Member Draft', null, (select id from public.publication_categories where slug = 'services'), null, null, null, null, null, null);
+  ('12000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013', 'visible-event', 'event', 'published', 'Visible Event', 'Description', (select id from public.publication_categories where slug = 'culture'), now() + interval '1 hour', now() + interval '3 hours', null, now(), 'Sudak', 'Бесплатно', now(), null),
+  ('12000000-0000-0000-0000-000000000002', '11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013', 'expired-event', 'event', 'published', 'Expired Event', 'Description', (select id from public.publication_categories where slug = 'culture'), now() - interval '3 hours', now() - interval '1 hour', null, now() - interval '1 day', 'Sudak', 'Бесплатно', now() - interval '1 day', null),
+  ('12000000-0000-0000-0000-000000000003', '11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013', 'hidden-event', 'event', 'hidden', 'Hidden Event', 'Description', (select id from public.publication_categories where slug = 'culture'), now() + interval '1 hour', now() + interval '3 hours', null, now(), 'Sudak', 'Бесплатно', now(), 'Hidden fixture'),
+  ('12000000-0000-0000-0000-000000000004', '11000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000013', 'blocked-org-event', 'event', 'published', 'Blocked Org Event', 'Description', (select id from public.publication_categories where slug = 'culture'), now() + interval '1 hour', now() + interval '3 hours', null, now(), 'Sudak', 'Бесплатно', now(), null),
+  ('12000000-0000-0000-0000-000000000005', '11000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000011', 'member-draft', 'news', 'draft', 'Member Draft', null, (select id from public.publication_categories where slug = 'services'), null, null, null, null, null, null, null, null);
 
 insert into public.publication_schedules (publication_id, schedule_text, sort_order)
 values
@@ -307,12 +318,16 @@ select ok(
   'rpc rejects reports for hidden publications'
 );
 
-select ok(
-  not pg_temp.statement_raises(
-    $$ insert into public.analytics_events (event_name, publication_id, anonymous_id)
-       values ('publication_view', '12000000-0000-0000-0000-000000000001', 'anon-one') $$
-  ),
-  'anon can write analytics for a public publication'
+select lives_ok(
+  $$ select public.track_public_analytics_event(
+    'publication_view',
+    '11000000-0000-0000-0000-000000000001',
+    '12000000-0000-0000-0000-000000000001',
+    null,
+    'anon-one',
+    '{}'::jsonb
+  ) $$,
+  'anon records analytics for a public publication through the protected RPC'
 );
 
 select ok(
@@ -479,13 +494,13 @@ select is(
   'admin reads all publications'
 );
 
-select ok(
-  not pg_temp.statement_raises(
-    $$ update public.publications
-       set status = 'hidden'
-       where slug = 'visible-event' $$
-  ),
-  'admin can hide a publication'
+select lives_ok(
+  $$ select public.admin_moderate_publication(
+    '12000000-0000-0000-0000-000000000001',
+    'hidden',
+    'Hidden by the content RLS test'
+  ) $$,
+  'admin can hide a publication through the protected moderation RPC'
 );
 
 select ok(

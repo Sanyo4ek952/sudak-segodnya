@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { postgresUuidSchema } from "@/shared/lib/postgres-uuid";
 
 export const inaccuracyReportReasons = [
   "wrong_datetime",
@@ -12,7 +13,7 @@ export const inaccuracyReportReasons = [
 export type InaccuracyReportReason = (typeof inaccuracyReportReasons)[number];
 
 export const inaccuracyReportSchema = z.object({
-  publicationId: z.string().uuid(),
+  publicationId: postgresUuidSchema,
   reason: z.enum(inaccuracyReportReasons),
   comment: z.string().trim().max(1000).optional()
 });

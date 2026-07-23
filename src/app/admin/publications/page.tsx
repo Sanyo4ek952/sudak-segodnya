@@ -1,8 +1,6 @@
 import Link from "next/link";
-import {
-  changeAdminPublicationStatusAction,
-  getAdminPublications
-} from "@/features/admin-quality-control/model/actions";
+import { getAdminPublications } from "@/features/admin-quality-control/model/actions";
+import { PublicationModerationActions } from "@/features/admin-quality-control/ui/moderation-actions";
 import {
   adminPublicationFilters,
   parseAdminPage,
@@ -18,7 +16,6 @@ import { LinkButton } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { SectionHeader } from "@/shared/ui/section-header";
-import { SubmitButton } from "@/shared/ui/submit-button";
 
 const filterLabels = {
   published: "Опубликованные",
@@ -101,31 +98,10 @@ export default async function AdminPublicationsPage({ searchParams }: AdminPubli
                     {publication.moderation_comment}
                   </p>
                 ) : null}
-                <div className="flex flex-wrap gap-2">
-                  {publication.status !== "hidden" ? (
-                    <form action={changeAdminPublicationStatusAction}>
-                      <input type="hidden" name="publicationId" value={publication.id} />
-                      <input type="hidden" name="status" value="hidden" />
-                      <input type="hidden" name="comment" value="Скрыто администратором" />
-                      <SubmitButton variant="outline" size="sm" pendingLabel="Скрываем...">Скрыть</SubmitButton>
-                    </form>
-                  ) : null}
-                  {publication.status !== "blocked" ? (
-                    <form action={changeAdminPublicationStatusAction}>
-                      <input type="hidden" name="publicationId" value={publication.id} />
-                      <input type="hidden" name="status" value="blocked" />
-                      <input type="hidden" name="comment" value="Заблокировано администратором" />
-                      <SubmitButton variant="destructive" size="sm" pendingLabel="Блокируем...">Блокировать</SubmitButton>
-                    </form>
-                  ) : null}
-                  {publication.status === "hidden" || publication.status === "blocked" ? (
-                    <form action={changeAdminPublicationStatusAction}>
-                      <input type="hidden" name="publicationId" value={publication.id} />
-                      <input type="hidden" name="status" value="published" />
-                      <SubmitButton size="sm" pendingLabel="Восстанавливаем...">Восстановить</SubmitButton>
-                    </form>
-                  ) : null}
-                </div>
+                <PublicationModerationActions
+                  publicationId={publication.id}
+                  status={publication.status}
+                />
               </CardContent>
             </Card>
           ))}

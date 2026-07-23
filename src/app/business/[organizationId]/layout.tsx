@@ -22,12 +22,13 @@ export default async function BusinessOrganizationLayout({
 
   const basePath = `/business/${organizationId}`;
   const navigationItems = [
-    { label: "Обзор", href: basePath, exact: true },
+    { label: "Главная", href: basePath, exact: true },
+    { label: "Мои организации", href: "/business", exact: true },
     { label: "Профиль", href: `${basePath}/profile` },
     { label: "Публикации", href: `${basePath}/publications` },
-    { label: "Меню", href: `${basePath}/menu` },
+    { label: "Меню и услуги", href: `${basePath}/menu` },
     { label: "Статистика", href: `${basePath}/statistics` },
-    { label: "Настройки", href: `${basePath}/settings` }
+    { label: "Представители", href: `${basePath}/settings` }
   ];
 
   return (

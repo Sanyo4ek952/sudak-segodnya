@@ -18,6 +18,7 @@ export const publications: Publication[] = [
       name: "Городская служба"
     },
     validUntil: "2026-07-20T22:00:00+03:00",
+    scheduleEntries: [],
     place: "Центр Судака",
     priceText: "Важно",
     isFree: true,
@@ -40,6 +41,7 @@ export const publications: Publication[] = [
     },
     startsAt: "2026-07-20T19:30:00+03:00",
     endsAt: "2026-07-20T21:00:00+03:00",
+    scheduleEntries: [],
     place: "ул. Ленина, 23",
     priceText: "400 ₽",
     isFree: false,
@@ -63,6 +65,7 @@ export const publications: Publication[] = [
       name: "Кафе Прибой"
     },
     validUntil: "2026-07-26T23:00:00+03:00",
+    scheduleEntries: [],
     place: "Набережная, 8",
     priceText: "от 520 ₽",
     isFree: false,
@@ -85,6 +88,11 @@ export const publications: Publication[] = [
       name: "Спорт-клуб Волна"
     },
     schedule: "Пн, ср, пт в 17:00",
+    scheduleEntries: [
+      { text: "Понедельник в 17:00", weekday: 1, startsAt: "17:00", timezone: "Europe/Moscow" },
+      { text: "Среда в 17:00", weekday: 3, startsAt: "17:00", timezone: "Europe/Moscow" },
+      { text: "Пятница в 17:00", weekday: 5, startsAt: "17:00", timezone: "Europe/Moscow" }
+    ],
     validUntil: "2026-08-31T21:00:00+03:00",
     place: "ул. Морская, 14",
     priceText: "Пробное бесплатно",
@@ -110,6 +118,7 @@ export const publications: Publication[] = [
     },
     startsAt: "2026-07-21T08:30:00+03:00",
     endsAt: "2026-07-21T11:00:00+03:00",
+    scheduleEntries: [],
     place: "старт от автостанции",
     priceText: "900 ₽",
     isFree: false,
@@ -131,6 +140,7 @@ export const publications: Publication[] = [
       name: "Кафе Прибой"
     },
     validUntil: "2026-07-24T18:00:00+03:00",
+    scheduleEntries: [],
     place: "центр и набережная",
     priceText: "доставка бесплатно",
     isFree: true,
@@ -151,6 +161,7 @@ export const publications: Publication[] = [
     },
     startsAt: "2026-07-20T18:00:00+03:00",
     endsAt: "2026-07-20T21:00:00+03:00",
+    scheduleEntries: [],
     place: "Набережная",
     priceText: "Бесплатно",
     isFree: true,
@@ -171,6 +182,7 @@ export const publications: Publication[] = [
     },
     startsAt: "2026-07-19T18:00:00+03:00",
     endsAt: "2026-07-19T19:30:00+03:00",
+    scheduleEntries: [],
     place: "ул. Ленина, 23",
     priceText: "300 ₽",
     isFree: false,

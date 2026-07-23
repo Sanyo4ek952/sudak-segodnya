@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AnalyticsLink } from "@/features/analytics/ui/analytics-link";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent } from "@/shared/ui/card";
 import { FavoriteToggle } from "@/features/save-favorite/ui/favorite-toggle";
@@ -9,9 +9,13 @@ import { OrganizationImage } from "@/entities/organization/ui/organization-image
 export function OrganizationCard({ organization }: { organization: Organization }) {
   return (
     <Card className="overflow-hidden">
-      <Link href={`/organizations/${organization.slug}`} className="block">
+      <AnalyticsLink
+        href={`/organizations/${organization.slug}`}
+        className="block"
+        analytics={{ eventName: "organization_click", organizationId: organization.id }}
+      >
         <OrganizationImage organization={organization} className="aspect-[16/9] w-full rounded-none" />
-      </Link>
+      </AnalyticsLink>
       <CardContent className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <Badge variant="muted">{organizationTypeLabels[organization.type]}</Badge>
@@ -25,9 +29,13 @@ export function OrganizationCard({ organization }: { organization: Organization 
           />
         </div>
         <div className="space-y-2">
-          <Link href={`/organizations/${organization.slug}`} className="block">
+          <AnalyticsLink
+            href={`/organizations/${organization.slug}`}
+            className="block"
+            analytics={{ eventName: "organization_click", organizationId: organization.id }}
+          >
             <h3 className="text-lg font-semibold leading-snug">{organization.name}</h3>
-          </Link>
+          </AnalyticsLink>
           <p className="line-clamp-2 text-sm leading-6 text-foreground-muted">{organization.description}</p>
         </div>
         <div className="grid gap-2 text-sm text-foreground-muted">

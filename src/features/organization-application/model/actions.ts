@@ -35,6 +35,7 @@ type BusinessState = {
   };
   profile: Pick<Tables<"profiles">, "id" | "role" | "display_name" | "phone"> | null;
   memberships: OrganizationMembership[];
+  applications: Tables<"organization_applications">[];
   application: Tables<"organization_applications"> | null;
 };
 
@@ -127,7 +128,6 @@ export async function getCurrentBusinessState(): Promise<BusinessState | null> {
       .select("*")
       .eq("applicant_id", userData.user.id)
       .order("created_at", { ascending: false })
-      .limit(1)
   ]);
 
   return {
@@ -138,6 +138,7 @@ export async function getCurrentBusinessState(): Promise<BusinessState | null> {
     },
     profile,
     memberships: (memberships ?? []) as OrganizationMembership[],
+    applications: applications ?? [],
     application: applications?.[0] ?? null
   };
 }
@@ -273,7 +274,8 @@ export async function saveOrganizationApplicationDraftAction(
 
   return {
     status: "success",
-    message: "Черновик заявки сохранен."
+    message: "Черновик заявки сохранен.",
+    applicationId: result.application.id
   } satisfies ApplicationFormState;
 }
 

@@ -20,6 +20,14 @@ function getEventName(href: string): AnalyticsEventName | null {
     return "route_click";
   }
 
+  try {
+    if (new URL(href, window.location.origin).pathname.startsWith("/organizations/")) {
+      return "organization_click";
+    }
+  } catch {
+    return null;
+  }
+
   return null;
 }
 

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getBusinessOrganization } from "@/features/business-cabinet/model/actions";
+import { getOrganizationTypes } from "@/features/organization-application/model/actions";
 import { OrganizationProfileForm } from "@/features/business-cabinet/ui/organization-profile-form";
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
@@ -12,7 +13,10 @@ type ProfilePageProps = {
 
 export default async function ProfilePage({ params }: ProfilePageProps) {
   const { organizationId } = await params;
-  const organization = await getBusinessOrganization(organizationId);
+  const [organization, organizationTypes] = await Promise.all([
+    getBusinessOrganization(organizationId),
+    getOrganizationTypes()
+  ]);
 
   if (!organization) {
     notFound();
@@ -27,7 +31,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
       />
       <Card>
         <CardContent>
-          <OrganizationProfileForm organization={organization} />
+          <OrganizationProfileForm organization={organization} organizationTypes={organizationTypes} />
         </CardContent>
       </Card>
     </div>

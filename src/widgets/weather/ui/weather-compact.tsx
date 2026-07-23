@@ -22,7 +22,7 @@ export async function WeatherCompact() {
   return (
     <Link href="/weather" className="block">
       <Card>
-        <CardContent className="flex items-center justify-between gap-4 py-3">
+        <CardContent className="flex items-center justify-between gap-4 py-2.5">
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground-muted">Погода в Судаке</p>
             {forecast ? (
@@ -31,7 +31,7 @@ export async function WeatherCompact() {
                   {forecast.now.condition.icon} {forecast.now.temperature > 0 ? "+" : ""}
                   {forecast.now.temperature}, {forecast.now.condition.label}
                 </p>
-                <p className="truncate text-xs text-foreground-muted">
+                <p className="hidden truncate text-xs text-foreground-muted sm:block">
                   {formatRainLine(forecast.now.precipitation, nextHour?.precipitationProbability ?? null)}
                 </p>
               </>

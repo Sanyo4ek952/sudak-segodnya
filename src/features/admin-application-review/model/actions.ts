@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/shared/api/supabase/server";
+import { postgresUuidSchema } from "@/shared/lib/postgres-uuid";
 import type {
   AdminActionState,
+  AdminApplicationDetail,
   AdminApplicationListItem,
   AdminApplicationFilter,
   AdminApplicationsResult,
@@ -13,7 +15,7 @@ import type {
 
 const pageSize = 10;
 
-const idSchema = z.string().uuid();
+const idSchema = postgresUuidSchema;
 const commentSchema = z.string().trim().min(3).max(2000);
 
 function actionError(message: string): AdminActionState {
@@ -154,8 +156,22 @@ export async function getAdminApplication(id: string) {
     return null;
   }
 
-  const [application] = await attachApplicants([data as ApplicationWithRelations]);
-  return application ?? null;
+  const [[application], { data: auditEvents }] = await Promise.all([
+    attachApplicants([data as ApplicationWithRelations]),
+    supabase
+      .from("audit_events")
+      .select("*")
+      .eq("entity_type", "organization_applications")
+      .eq("entity_id", parsedId.data)
+      .order("created_at", { ascending: false })
+  ]);
+
+  return application
+    ? {
+        ...application,
+        auditEvents: auditEvents ?? []
+      } satisfies AdminApplicationDetail
+    : null;
 }
 
 export async function approveApplicationAction(

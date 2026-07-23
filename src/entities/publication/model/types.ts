@@ -17,6 +17,14 @@ export type PublicationOrganization = {
   name: string;
 };
 
+export type PublicationSchedule = {
+  text: string;
+  weekday?: number;
+  startsAt?: string;
+  endsAt?: string;
+  timezone: string;
+};
+
 export type Publication = {
   id: string;
   slug: string;
@@ -29,6 +37,7 @@ export type Publication = {
   endsAt?: string;
   validUntil?: string;
   schedule?: string;
+  scheduleEntries: PublicationSchedule[];
   place: string;
   priceText: string;
   isFree: boolean;
@@ -37,6 +46,7 @@ export type Publication = {
   contactPhone?: string;
   ageLimit?: string;
   isPinned?: boolean;
+  publishedAt?: string;
   updatedAt: string;
 };
 

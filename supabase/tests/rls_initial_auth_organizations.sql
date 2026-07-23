@@ -25,8 +25,12 @@ where publication_id in (
 delete from public.publications where author_id = '00000000-0000-0000-0000-000000000101';
 delete from public.menu_items where organization_id::text like '21000000-%';
 delete from public.menu_categories where organization_id::text like '21000000-%';
+alter table public.organization_members
+  disable trigger protect_last_organization_owner_trigger;
 delete from public.organization_members where organization_id::text like '21000000-%';
 delete from public.organizations where id::text like '21000000-%';
+alter table public.organization_members
+  enable trigger protect_last_organization_owner_trigger;
 
 insert into auth.users (id, email)
 values
@@ -187,13 +191,18 @@ select ok(
   'user can edit their application in an allowed status'
 );
 
-select ok(
-  pg_temp.statement_raises(
-    $$ update public.organization_applications
-       set description = 'Rejected edit'
-       where id = '20000000-0000-0000-0000-000000000004' $$
+update public.organization_applications
+set description = 'Rejected edit'
+where id = '20000000-0000-0000-0000-000000000004';
+
+select isnt(
+  (
+    select description
+    from public.organization_applications
+    where id = '20000000-0000-0000-0000-000000000004'
   ),
-  'user cannot edit an application in a disallowed status'
+  'Rejected edit',
+  'RLS leaves an application in a disallowed status unchanged'
 );
 
 select ok(
@@ -495,11 +504,9 @@ select is(
   'approval creates exactly one active owner membership'
 );
 
-select ok(
-  pg_temp.statement_raises(
-    $$ select * from public.approve_organization_application('20000000-0000-0000-0000-000000000006') $$
-  ),
-  'repeated approval is rejected'
+select lives_ok(
+  $$ select * from public.approve_organization_application('20000000-0000-0000-0000-000000000006') $$,
+  'repeated approval is idempotent'
 );
 
 select is(

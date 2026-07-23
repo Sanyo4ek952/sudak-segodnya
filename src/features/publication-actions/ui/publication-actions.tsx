@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { trackAnalyticsEvent } from "@/features/analytics/model/events";
 import { AnalyticsLinkButton } from "@/features/analytics/ui/analytics-link-button";
 import {
   canAddPublicationToCalendar,
@@ -76,6 +77,8 @@ export function PublicationActions({ publication }: PublicationActionsProps) {
   const contactPhoneHref = publication.contactPhone
     ? `tel:${publication.contactPhone.replace(/\D/g, "")}`
     : null;
+  const canShowRoute = (publication.type === "event" || publication.type === "regular")
+    && Boolean(publication.place);
 
   const getPublicUrl = () => window.location.href;
 
@@ -90,6 +93,11 @@ export function PublicationActions({ publication }: PublicationActionsProps) {
           text: publication.description || publication.organization.name,
           url
         });
+        trackAnalyticsEvent({
+          eventName: "share",
+          organizationId: publication.organization.id,
+          publicationId: publication.id
+        });
         return;
       } catch (error) {
         if (isShareDismissed(error)) {
@@ -99,6 +107,13 @@ export function PublicationActions({ publication }: PublicationActionsProps) {
     }
 
     const copied = await copyToClipboard(url);
+    if (copied) {
+      trackAnalyticsEvent({
+        eventName: "share",
+        organizationId: publication.organization.id,
+        publicationId: publication.id
+      });
+    }
     setFeedback(
       copied
         ? { tone: "success", message: "Ссылка на публикацию скопирована." }
@@ -124,6 +139,11 @@ export function PublicationActions({ publication }: PublicationActionsProps) {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      trackAnalyticsEvent({
+        eventName: "calendar",
+        organizationId: publication.organization.id,
+        publicationId: publication.id
+      });
       setFeedback({ tone: "success", message: "Файл календаря скачан." });
     } catch {
       setFeedback({ tone: "error", message: "Не удалось создать файл календаря." });
@@ -134,19 +154,21 @@ export function PublicationActions({ publication }: PublicationActionsProps) {
     <div className="space-y-2">
       <div className="grid gap-3 sm:grid-cols-2">
         {contactPhoneHref ? <LinkButton href={contactPhoneHref}>Позвонить</LinkButton> : null}
-        <AnalyticsLinkButton
-          href={`https://yandex.ru/maps/?text=${encodeURIComponent(publication.place)}`}
-          variant="outline"
-          target="_blank"
-          rel="noreferrer"
-          analytics={{
-            eventName: "route_click",
-            organizationId: publication.organization.id,
-            publicationId: publication.id
-          }}
-        >
-          Маршрут
-        </AnalyticsLinkButton>
+        {canShowRoute ? (
+          <AnalyticsLinkButton
+            href={`https://yandex.ru/maps/?text=${encodeURIComponent(publication.place)}`}
+            variant="outline"
+            target="_blank"
+            rel="noreferrer"
+            analytics={{
+              eventName: "route_click",
+              organizationId: publication.organization.id,
+              publicationId: publication.id
+            }}
+          >
+            Маршрут
+          </AnalyticsLinkButton>
+        ) : null}
         {canAddToCalendar ? (
           <Button type="button" variant="outline" onClick={handleCalendarDownload}>
             В календарь

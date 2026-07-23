@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Badge } from "@/shared/ui/badge";
@@ -56,6 +57,9 @@ export default async function OrganizationPage({ params }: OrganizationPageProps
 
   const { publications: organizationPublications } = await listPublicPublicationsByOrganization(organization.id);
   const availableServices = organization.services.filter((service) => service.isAvailable);
+  const routeTarget = organization.latitude !== undefined && organization.longitude !== undefined
+    ? `${organization.latitude},${organization.longitude}`
+    : organization.address;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -80,7 +84,6 @@ export default async function OrganizationPage({ params }: OrganizationPageProps
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="muted">{organizationTypeLabels[organization.type]}</Badge>
-            <Badge variant="success">Информация актуальна</Badge>
           </div>
           <div className="space-y-3">
             <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">{organization.name}</h1>
@@ -119,7 +122,7 @@ export default async function OrganizationPage({ params }: OrganizationPageProps
               <dt className="font-medium text-foreground-muted">Маршрут</dt>
               <dd className="mt-1">
                 <Link
-                  href={`https://yandex.ru/maps/?text=${encodeURIComponent(organization.address)}`}
+                  href={`https://yandex.ru/maps/?text=${encodeURIComponent(routeTarget)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="text-base font-semibold text-primary"
@@ -131,6 +134,27 @@ export default async function OrganizationPage({ params }: OrganizationPageProps
           </dl>
         </CardContent>
       </Card>
+
+      {organization.contactLinks.length ? (
+        <Card>
+          <CardContent className="space-y-3">
+            <h2 className="font-semibold">Контактные ссылки</h2>
+            <div className="flex flex-wrap gap-3">
+              {organization.contactLinks.map((contact) => (
+                <Link
+                  key={contact.href}
+                  href={contact.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-11 items-center text-sm font-medium text-primary"
+                >
+                  {contact.label}
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {availableServices.length ? (
         <section className="space-y-4">
@@ -144,6 +168,18 @@ export default async function OrganizationPage({ params }: OrganizationPageProps
           <div className="grid gap-3 sm:grid-cols-2">
             {availableServices.map((service) => (
               <Card key={service.id}>
+                {service.image ? (
+                  <div className="relative aspect-[16/9] overflow-hidden rounded-t-xl bg-surface-muted">
+                    <Image
+                      src={service.image}
+                      alt=""
+                      fill
+                      unoptimized
+                      sizes="(max-width: 640px) 100vw, 50vw"
+                      className="object-cover"
+                    />
+                  </div>
+                ) : null}
                 <CardContent className="space-y-2">
                   <h2 className="text-base font-semibold">{service.title}</h2>
                   <p className="text-sm leading-6 text-foreground-muted">{service.description}</p>
@@ -169,7 +205,7 @@ export default async function OrganizationPage({ params }: OrganizationPageProps
       <div className="grid gap-3 sm:grid-cols-2">
         <LinkButton href={`tel:${organization.phone.replace(/\D/g, "")}`}>Позвонить</LinkButton>
         <LinkButton
-          href={`https://yandex.ru/maps/?text=${encodeURIComponent(organization.address)}`}
+          href={`https://yandex.ru/maps/?text=${encodeURIComponent(routeTarget)}`}
           variant="outline"
           target="_blank"
           rel="noreferrer"

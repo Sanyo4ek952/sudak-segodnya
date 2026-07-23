@@ -20,6 +20,7 @@ export type OrganizationService = {
   description: string;
   priceText: string;
   isAvailable: boolean;
+  image?: string;
 };
 
 export type Organization = {
@@ -31,6 +32,9 @@ export type Organization = {
   address: string;
   phone: string;
   workingHours: string;
+  latitude?: number;
+  longitude?: number;
+  contactLinks: Array<{ label: string; href: string }>;
   logo?: string;
   cover?: string;
   services: OrganizationService[];

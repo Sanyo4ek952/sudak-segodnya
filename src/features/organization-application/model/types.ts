@@ -24,6 +24,7 @@ export type ApplicationFormState = {
   status: "idle" | "success" | "error";
   message: string;
   fieldErrors?: Partial<Record<ApplicationFieldName, string>>;
+  applicationId?: string;
 };
 
 export const initialApplicationFormState: ApplicationFormState = {

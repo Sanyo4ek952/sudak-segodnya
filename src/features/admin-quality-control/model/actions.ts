@@ -5,8 +5,11 @@ import { z } from "zod";
 import { isCurrentUserAdmin } from "@/features/admin-application-review/model/actions";
 import { createSupabaseServerClient } from "@/shared/api/supabase/server";
 import type { TablesInsert, TablesUpdate } from "@/shared/api/supabase/database.types";
+import { postgresUuidSchema } from "@/shared/lib/postgres-uuid";
 import type {
   AdminActionState,
+  AdminAuditFilter,
+  AdminAuditListItem,
   AdminAnnouncementFilter,
   AdminAnnouncementListItem,
   AdminOrganizationFilter,
@@ -19,7 +22,7 @@ import type {
 } from "@/features/admin-quality-control/model/types";
 
 const pageSize = 10;
-const uuidSchema = z.string().uuid();
+const uuidSchema = postgresUuidSchema;
 const commentSchema = z.string().trim().max(1000).optional();
 
 function getString(formData: FormData, name: string) {
@@ -168,7 +171,11 @@ export async function getAdminOrganizations({
   const supabase = await createSupabaseServerClient();
   let query = supabase
     .from("organizations")
-    .select("*, organization_types(id, name, slug)", { count: "exact" })
+    .select(`
+      *,
+      organization_types!organizations_category_id_fkey(id, name, slug),
+      pending_type:organization_types!organizations_pending_type_id_fkey(id, name, slug)
+    `, { count: "exact" })
     .order("updated_at", { ascending: false })
     .range(from, to);
 
@@ -265,7 +272,55 @@ export async function getAdminAnnouncement(id: string) {
   return data as AdminAnnouncementListItem;
 }
 
-export async function changeAdminPublicationStatusAction(formData: FormData) {
+export async function getAdminAuditEvents({
+  entityType,
+  page
+}: {
+  entityType: AdminAuditFilter;
+  page: number;
+}): Promise<PagedAdminResult<AdminAuditListItem>> {
+  await assertAdmin();
+  const { safePage, from, to } = rangeForPage(page);
+  const supabase = await createSupabaseServerClient();
+  let query = supabase
+    .from("audit_events")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (entityType !== "all") {
+    query = query.eq("entity_type", entityType);
+  }
+
+  const { data, count, error } = await query;
+
+  if (error) {
+    throw new Error("Failed to load audit history");
+  }
+
+  const actorIds = Array.from(
+    new Set((data ?? []).flatMap((event) => event.actor_id ? [event.actor_id] : []))
+  );
+  const { data: actors } = actorIds.length
+    ? await supabase.from("profiles").select("id, display_name").in("id", actorIds)
+    : { data: [] };
+  const actorById = new Map((actors ?? []).map((actor) => [actor.id, actor]));
+
+  return {
+    items: (data ?? []).map((event) => ({
+      ...event,
+      actor: event.actor_id ? actorById.get(event.actor_id) ?? null : null
+    })),
+    page: safePage,
+    pageSize,
+    total: count ?? 0
+  };
+}
+
+export async function changeAdminPublicationStatusAction(
+  _state: AdminActionState,
+  formData: FormData
+): Promise<AdminActionState> {
   await assertAdmin();
   const parsed = z.object({
     publicationId: uuidSchema,
@@ -278,44 +333,124 @@ export async function changeAdminPublicationStatusAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    return;
+    return actionError("Проверьте статус и причину действия.");
+  }
+
+  if (!parsed.data.comment) {
+    return actionError("Укажите причину административного действия.");
   }
 
   const supabase = await createSupabaseServerClient();
-  await supabase
-    .from("publications")
-    .update({
-      status: parsed.data.status,
-      moderation_comment: parsed.data.status === "published" ? null : parsed.data.comment || null
-    })
-    .eq("id", parsed.data.publicationId);
+  const { error } = await supabase.rpc("admin_moderate_publication", {
+    p_publication_id: parsed.data.publicationId,
+    p_status: parsed.data.status,
+    p_reason: parsed.data.comment ?? ""
+  });
+
+  if (error) {
+    return actionError(
+      error.message.includes("reason")
+        ? "Для скрытия или блокировки укажите причину."
+        : "Не удалось изменить статус публикации."
+    );
+  }
 
   revalidatePath("/");
   revalidatePath("/admin");
   revalidatePath("/admin/publications");
+  return actionSuccess(
+    parsed.data.status === "published"
+      ? "Публикация восстановлена."
+      : "Статус публикации обновлён, причина записана в историю."
+  );
 }
 
-export async function changeAdminOrganizationStatusAction(formData: FormData) {
+export async function changeAdminOrganizationStatusAction(
+  _state: AdminActionState,
+  formData: FormData
+): Promise<AdminActionState> {
   await assertAdmin();
   const parsed = z.object({
     organizationId: uuidSchema,
-    status: z.enum(["active", "blocked"])
+    status: z.enum(["active", "blocked"]),
+    comment: commentSchema
   }).safeParse({
     organizationId: getString(formData, "organizationId"),
-    status: getString(formData, "status")
+    status: getString(formData, "status"),
+    comment: getString(formData, "comment")
   });
 
   if (!parsed.success) {
-    return;
+    return actionError("Проверьте статус и причину действия.");
+  }
+
+  if (!parsed.data.comment) {
+    return actionError("Укажите причину административного действия.");
   }
 
   const supabase = await createSupabaseServerClient();
-  await supabase.from("organizations").update({ status: parsed.data.status }).eq("id", parsed.data.organizationId);
+  const { error } = await supabase.rpc("admin_moderate_organization", {
+    p_organization_id: parsed.data.organizationId,
+    p_status: parsed.data.status,
+    p_reason: parsed.data.comment ?? ""
+  });
+
+  if (error) {
+    return actionError(
+      error.message.includes("reason")
+        ? "Для блокировки укажите причину."
+        : "Не удалось изменить статус организации."
+    );
+  }
 
   revalidatePath("/");
   revalidatePath("/organizations");
   revalidatePath("/admin");
   revalidatePath("/admin/organizations");
+  return actionSuccess(
+    parsed.data.status === "active"
+      ? "Организация восстановлена."
+      : "Организация заблокирована, причина записана в историю."
+  );
+}
+
+export async function reviewOrganizationTypeChangeAction(
+  _state: AdminActionState,
+  formData: FormData
+): Promise<AdminActionState> {
+  await assertAdmin();
+  const parsed = z.object({
+    organizationId: uuidSchema,
+    approve: z.enum(["true", "false"]),
+    reason: z.string().trim().min(3).max(1000)
+  }).safeParse({
+    organizationId: getString(formData, "organizationId"),
+    approve: getString(formData, "approve"),
+    reason: getString(formData, "reason")
+  });
+
+  if (!parsed.success) {
+    return actionError("Укажите решение и комментарий длиной не менее трёх символов.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("review_organization_type_change", {
+    p_organization_id: parsed.data.organizationId,
+    p_approve: parsed.data.approve === "true",
+    p_reason: parsed.data.reason
+  });
+
+  if (error) {
+    return actionError("Не удалось обработать изменение типа организации.");
+  }
+
+  revalidatePath("/organizations");
+  revalidatePath("/admin/organizations");
+  return actionSuccess(
+    parsed.data.approve === "true"
+      ? "Новый тип организации подтверждён."
+      : "Изменение типа отклонено."
+  );
 }
 
 export async function changeAdminReportStatusAction(
@@ -370,7 +505,7 @@ export async function saveImportantAnnouncementAction(
 ): Promise<AdminActionState> {
   await assertAdmin();
   const parsed = z.object({
-    announcementId: z.string().uuid().optional().or(z.literal("")),
+    announcementId: uuidSchema.optional().or(z.literal("")),
     title: z.string().trim().min(3).max(180),
     description: z.string().trim().min(5).max(1000),
     status: z.enum(["draft", "active", "expired", "hidden"]),

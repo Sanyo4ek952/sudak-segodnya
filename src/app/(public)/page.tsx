@@ -24,29 +24,28 @@ type HomePageProps = {
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const filter = normalizePublicationFilter(await searchParams);
-  const [{ publications, error: publicationsError }, { announcement }] = await Promise.all([
-    listPublicPublications(),
+  const [{ publications, nextCursor, error: publicationsError }, { announcement }] = await Promise.all([
+    listPublicPublications({ filter }),
     getActiveImportantAnnouncement()
   ]);
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-3">
-        <p className="text-sm font-medium text-primary">Судак сейчас</p>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
-            Что происходит в городе сегодня
-          </h1>
-          <p className="max-w-form text-base leading-7 text-foreground-muted">
-            События, объявления, акции и полезные обновления от организаций Судака в одной легкой ленте.
-          </p>
-        </div>
+    <div className="space-y-3 sm:space-y-6">
+      <section className="space-y-1 sm:space-y-1.5">
+        <h1 className="text-2xl font-semibold leading-tight text-foreground sm:text-4xl">
+          Судак сегодня
+        </h1>
+        <p className="hidden max-w-form text-sm leading-6 text-foreground-muted sm:block sm:text-base sm:leading-7">
+          Что происходит сейчас и в ближайшее время.
+        </p>
       </section>
       <WeatherCompact />
       <PublicFeed
+        key={filter}
         publications={publications}
         importantAnnouncement={announcement}
         filter={filter}
+        nextCursor={nextCursor}
         error={publicationsError}
       />
     </div>

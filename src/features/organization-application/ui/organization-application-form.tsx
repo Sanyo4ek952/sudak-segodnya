@@ -254,7 +254,7 @@ export function OrganizationApplicationForm({
       noValidate
       onSubmit={handleFormSubmit}
     >
-      <input type="hidden" name="applicationId" value={application?.id ?? ""} />
+      <input type="hidden" name="applicationId" value={saveState.applicationId ?? application?.id ?? ""} />
       <fieldset disabled={readOnly} className="space-y-4 disabled:opacity-80">
         <FormField
           id="organizationName"

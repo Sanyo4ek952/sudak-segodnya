@@ -27,9 +27,17 @@ type PublicationPageProps = {
 
 export const dynamic = "force-dynamic";
 
+function decodeSlug(slug: string) {
+  try {
+    return decodeURIComponent(slug);
+  } catch {
+    return slug;
+  }
+}
+
 export async function generateMetadata({ params }: PublicationPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const { publication } = await getPublicPublicationSeoBySlug(slug);
+  const { publication } = await getPublicPublicationSeoBySlug(decodeSlug(slug));
 
   if (!publication) {
     notFound();
@@ -40,9 +48,10 @@ export async function generateMetadata({ params }: PublicationPageProps): Promis
 
 export default async function PublicationPage({ params }: PublicationPageProps) {
   const { slug } = await params;
+  const decodedSlug = decodeSlug(slug);
   const [{ publication }, { publication: seoPublication }] = await Promise.all([
-    getPublicPublicationBySlug(slug),
-    getPublicPublicationSeoBySlug(slug)
+    getPublicPublicationBySlug(decodedSlug),
+    getPublicPublicationSeoBySlug(decodedSlug)
   ]);
 
   if (!publication || !seoPublication) {
@@ -51,7 +60,7 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
 
   const eventJsonLd = createEventJsonLd(seoPublication);
   const dateLabel = publication.startsAt
-    ? formatDateTime(publication.startsAt)
+    ? `${formatDateTime(publication.startsAt)}${publication.endsAt ? ` — ${formatDateTime(publication.endsAt)}` : ""}`
     : publication.validUntil
       ? `Актуально до ${formatDate(publication.validUntil)}`
       : publication.schedule ?? "Актуально";
@@ -97,6 +106,14 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
           {publication.isFree ? <Badge variant="success">Бесплатно</Badge> : null}
           {publication.ageLimit ? <Badge variant="muted">{publication.ageLimit}</Badge> : null}
         </div>
+        {publication.status === "cancelled" ? (
+          <div className="rounded-md border border-error bg-error/10 p-4" role="status">
+            <p className="font-semibold text-error">⚠ Публикация отменена</p>
+            <p className="mt-1 text-sm leading-6 text-foreground">
+              Организация отменила событие или предложение. Информация сохранена до конца полезного периода.
+            </p>
+          </div>
+        ) : null}
         <div className="space-y-3">
           <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">{publication.title}</h1>
           <p className="text-base leading-7 text-foreground-muted">{publication.description}</p>
@@ -124,14 +141,18 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
               <dt className="font-medium text-foreground-muted">Когда</dt>
               <dd className="mt-1 text-base font-semibold">{publication.schedule ?? dateLabel}</dd>
             </div>
-            <div>
-              <dt className="font-medium text-foreground-muted">Где</dt>
-              <dd className="mt-1 text-base font-semibold">{publication.place}</dd>
-            </div>
-            <div>
-              <dt className="font-medium text-foreground-muted">Цена</dt>
-              <dd className="mt-1 text-base font-semibold">{publication.priceText}</dd>
-            </div>
+            {(publication.type === "event" || publication.type === "regular") && publication.place ? (
+              <div>
+                <dt className="font-medium text-foreground-muted">Где</dt>
+                <dd className="mt-1 text-base font-semibold">{publication.place}</dd>
+              </div>
+            ) : null}
+            {publication.type !== "news" && publication.priceText ? (
+              <div>
+                <dt className="font-medium text-foreground-muted">Цена</dt>
+                <dd className="mt-1 text-base font-semibold">{publication.priceText}</dd>
+              </div>
+            ) : null}
             <div>
               <dt className="font-medium text-foreground-muted">Обновлено</dt>
               <dd className="mt-1 text-base font-semibold">{formatDate(publication.updatedAt)}</dd>

@@ -44,17 +44,16 @@ export default async function BusinessPage({ searchParams }: BusinessPageProps) 
     return null;
   }
 
-  const hasMemberships = organizations.length > 0;
-  const application = state.application;
   const applicationNotice = firstSearchValue(params.application);
-  const showSubmittedNotice = applicationNotice === "submitted" && application?.status === "submitted";
+  const showSubmittedNotice = applicationNotice === "submitted"
+    && state.applications.some((application) => application.status === "submitted");
 
   return (
     <div className="mx-auto max-w-form space-y-6">
       <SectionHeader
         as="h1"
-        title="Для бизнеса"
-        description="Статус аккаунта представителя и заявки организации."
+        title="Мои организации"
+        description="Все организации, роли и заявки на добавление организации."
         action={
           <form action={logoutAction}>
             <Button type="submit" variant="outline" size="sm">
@@ -69,7 +68,7 @@ export default async function BusinessPage({ searchParams }: BusinessPageProps) 
           <CardContent className="space-y-2">
             <Badge variant="success">Заявка отправлена</Badge>
             <p className="text-sm leading-6 text-foreground-muted">
-              Заявка принята и находится на рассмотрении. Ее статус будет обновляться здесь, в кабинете организации.
+              Заявка принята и находится на рассмотрении. Все изменения статуса появятся в списке ниже.
             </p>
           </CardContent>
         </Card>
@@ -78,9 +77,9 @@ export default async function BusinessPage({ searchParams }: BusinessPageProps) 
       {!state.user.emailConfirmedAt ? (
         <Card>
           <CardContent className="space-y-2">
-            <Badge variant="warning">Email не подтвержден</Badge>
+            <Badge variant="warning">Email не подтверждён</Badge>
             <p className="text-sm leading-6 text-foreground-muted">
-              Если подтверждение email включено в Supabase, откройте письмо и завершите подтверждение.
+              Откройте письмо Supabase и завершите подтверждение email.
             </p>
           </CardContent>
         </Card>
@@ -93,7 +92,7 @@ export default async function BusinessPage({ searchParams }: BusinessPageProps) 
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold">Администрирование</h2>
                 <p className="text-sm leading-6 text-foreground-muted">
-                  У аккаунта есть доступ к модерации заявок, публикаций и важных объявлений.
+                  Проверка заявок организаций, публикаций и важных объявлений.
                 </p>
               </div>
               <Badge variant="info">Админ</Badge>
@@ -105,88 +104,115 @@ export default async function BusinessPage({ searchParams }: BusinessPageProps) 
         </Card>
       ) : null}
 
-      {hasMemberships ? (
-        <Card>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">Ваши организации</h2>
-              <Badge variant="success">Доступ открыт</Badge>
-            </div>
-            <div className="grid gap-3">
-              {organizations.map((membership) => (
-                <div key={membership.id} className="rounded-md border border-border bg-background p-3">
-                  <p className="font-medium">{membership.organizations?.name ?? "Организация"}</p>
-                  <p className="text-sm leading-6 text-foreground-muted">
-                    Роль: {membership.role === "owner" ? "владелец" : "менеджер"}
-                  </p>
-                  <LinkButton
-                    href={`/business/${membership.organization_id}`}
-                    variant="outline"
-                    size="sm"
-                    className="mt-3"
-                  >
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold">Организации с доступом</h2>
+            <p className="text-sm leading-6 text-foreground-muted">
+              Переключайтесь между кабинетами независимо от количества организаций.
+            </p>
+          </div>
+          <LinkButton href="/business/application?new=1" size="sm">
+            Добавить организацию
+          </LinkButton>
+        </div>
+
+        {organizations.length ? (
+          <div className="grid gap-3">
+            {organizations.map((membership) => (
+              <Card key={membership.id}>
+                <CardContent className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <p className="font-medium">{membership.organizations?.name ?? "Организация"}</p>
+                    <p className="text-sm leading-6 text-foreground-muted">
+                      Роль: {membership.role === "owner" ? "владелец" : "менеджер"}
+                    </p>
+                  </div>
+                  <LinkButton href={`/business/${membership.organization_id}`} variant="outline" size="sm">
                     Открыть кабинет
                   </LinkButton>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="Доступных организаций пока нет"
+            description="Создайте заявку на добавление первой организации."
+            actionLabel="Добавить организацию"
+            actionHref="/business/application?new=1"
+          />
+        )}
+      </section>
 
-      {application ? (
-        <Card>
-          <CardContent className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="text-lg font-semibold">{application.organization_name ?? "Заявка организации"}</h2>
-                <p className="text-sm leading-6 text-foreground-muted">
-                  {application.submitted_at
-                    ? `Подана: ${formatDateTime(application.submitted_at)}`
-                    : `Создана: ${formatDateTime(application.created_at)}`}
-                </p>
-              </div>
-              <Badge variant={statusVariant(application.status)}>
-                {organizationApplicationStatusLabels[application.status]}
-              </Badge>
-            </div>
-            <p className="text-sm leading-6 text-foreground-muted">
-              {application.status === "submitted"
-                ? "Заявка на рассмотрении. Администратор проверит данные организации, после решения статус обновится здесь."
-                : application.status === "needs_changes"
-                  ? "Администратор запросил уточнение. Отредактируйте заявку и отправьте ее повторно."
-                  : application.status === "rejected"
-                    ? "Заявка отклонена. Данные остаются в истории."
-                    : application.status === "approved"
-                      ? "Заявка одобрена. Организация создана, доступ владельца открыт."
-                      : "Черновик можно дополнить и отправить на рассмотрение."}
-            </p>
-            {application.admin_comment ? (
-              <p className="rounded-md bg-surface-muted p-3 text-sm leading-6 text-foreground">
-                {application.admin_comment}
-              </p>
-            ) : null}
-            {application.status === "draft" || application.status === "needs_changes" ? (
-              <LinkButton href="/business/application" variant="primary">
-                Продолжить заявку
-              </LinkButton>
-            ) : (
-              <LinkButton href="/business/application" variant="outline">
-                Открыть заявку
-              </LinkButton>
-            )}
-          </CardContent>
-        </Card>
-      ) : null}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold">Заявки на добавление организации</h2>
+          <p className="text-sm leading-6 text-foreground-muted">
+            История всех заявок, комментарии администратора и связанные организации.
+          </p>
+        </div>
 
-      {!hasMemberships && !application ? (
-        <EmptyState
-          title="Заявка еще не подавалась"
-          description="Заполните данные организации, чтобы администратор мог проверить связь с ней."
-          actionLabel="Создать заявку"
-          actionHref="/business/application"
-        />
-      ) : null}
+        {state.applications.length ? (
+          <div className="grid gap-3">
+            {state.applications.map((application) => (
+              <Card key={application.id}>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold">
+                        {application.organization_name ?? "Новая организация"}
+                      </h3>
+                      <p className="text-sm leading-6 text-foreground-muted">
+                        {application.submitted_at
+                          ? `Подана: ${formatDateTime(application.submitted_at)}`
+                          : `Создана: ${formatDateTime(application.created_at)}`}
+                      </p>
+                    </div>
+                    <Badge variant={statusVariant(application.status)}>
+                      {organizationApplicationStatusLabels[application.status]}
+                    </Badge>
+                  </div>
+
+                  {application.admin_comment ? (
+                    <div className="rounded-md bg-surface-muted p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted">
+                        Комментарий администратора
+                      </p>
+                      <p className="mt-1 text-sm leading-6">{application.admin_comment}</p>
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-wrap gap-3">
+                    <LinkButton
+                      href={`/business/application?id=${application.id}`}
+                      variant={application.status === "draft" || application.status === "needs_changes" ? "primary" : "outline"}
+                      size="sm"
+                    >
+                      {application.status === "draft" || application.status === "needs_changes"
+                        ? "Продолжить заявку"
+                        : "Открыть заявку"}
+                    </LinkButton>
+                    {application.status === "approved" && application.organization_id ? (
+                      <LinkButton
+                        href={`/business/${application.organization_id}`}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Перейти в кабинет
+                      </LinkButton>
+                    ) : null}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-md border border-border bg-surface p-4 text-sm text-foreground-muted">
+            Заявок пока нет.
+          </p>
+        )}
+      </section>
     </div>
   );
 }

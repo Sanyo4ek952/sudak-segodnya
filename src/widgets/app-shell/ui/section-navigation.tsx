@@ -19,7 +19,10 @@ export function SectionNavigation({ label, items }: SectionNavigationProps) {
   const pathname = usePathname();
 
   return (
-    <nav className="overflow-x-auto pb-1" aria-label={label}>
+    <nav
+      className="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      aria-label={label}
+    >
       <div className="flex min-w-0 gap-2">
         {items.map((item) => {
           const isActive = item.exact
