@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isCurrentUserAdmin } from "@/features/admin-application-review/model/actions";
 import { createSupabaseServerClient } from "@/shared/api/supabase/server";
+import type { TablesInsert, TablesUpdate } from "@/shared/api/supabase/database.types";
 import type {
   AdminActionState,
   AdminAnnouncementFilter,
@@ -423,13 +424,15 @@ export async function saveImportantAnnouncementAction(
     status: parsed.data.status,
     publication_id: publicationId,
     active_from: parsed.data.activeFrom ? new Date(parsed.data.activeFrom).toISOString() : null,
-    active_until: parsed.data.activeUntil ? new Date(parsed.data.activeUntil).toISOString() : null,
-    created_by: adminId
-  };
+    active_until: parsed.data.activeUntil ? new Date(parsed.data.activeUntil).toISOString() : null
+  } satisfies TablesUpdate<"important_announcements">;
 
   const { error } = parsed.data.announcementId
     ? await supabase.from("important_announcements").update(payload).eq("id", parsed.data.announcementId)
-    : await supabase.from("important_announcements").insert(payload);
+    : await supabase.from("important_announcements").insert({
+        ...payload,
+        created_by: adminId
+      } satisfies TablesInsert<"important_announcements">);
 
   if (error) {
     return actionError("Не удалось сохранить важное объявление.");

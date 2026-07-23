@@ -11,3 +11,4 @@ yarn-error.log*
 pnpm-debug.log*
 next-dev.log
 next-dev-error.log
+tsconfig.tsbuildinfo

@@ -2,7 +2,7 @@ begin;
 
 set search_path = public, extensions;
 
-select plan(24);
+select plan(33);
 
 create or replace function pg_temp.statement_raises(statement text)
 returns boolean
@@ -167,8 +167,8 @@ select ok(
   not pg_temp.statement_raises(
     $$ select public.create_inaccuracy_report(
          '12000000-0000-0000-0000-000000000001',
-         'wrong_price',
-         'Wrong price comment',
+         'wrong_datetime',
+         'Wrong date or time comment',
          'guest-rpc-one'
        ) $$
   ),
@@ -179,12 +179,120 @@ select ok(
   pg_temp.statement_raises(
     $$ select public.create_inaccuracy_report(
          '12000000-0000-0000-0000-000000000001',
-         'wrong_price',
+         'wrong_datetime',
          'Duplicate comment',
          'guest-rpc-one'
        ) $$
   ),
   'rpc limits duplicate reports for same publication and reason'
+);
+
+select ok(
+  not pg_temp.statement_raises(
+    $$ select public.create_inaccuracy_report(
+         '12000000-0000-0000-0000-000000000001',
+         'wrong_price',
+         'Wrong price comment',
+         'guest-rpc-wrong-price'
+       ) $$
+  ),
+  'rpc accepts wrong_price reports'
+);
+
+select ok(
+  not pg_temp.statement_raises(
+    $$ select public.create_inaccuracy_report(
+         '12000000-0000-0000-0000-000000000001',
+         'cancelled',
+         'Cancelled event comment',
+         'guest-rpc-cancelled'
+       ) $$
+  ),
+  'rpc accepts cancelled reports'
+);
+
+select ok(
+  not pg_temp.statement_raises(
+    $$ select public.create_inaccuracy_report(
+         '12000000-0000-0000-0000-000000000001',
+         'wrong_address',
+         'Wrong address comment',
+         'guest-rpc-wrong-address'
+       ) $$
+  ),
+  'rpc accepts wrong_address reports'
+);
+
+select ok(
+  not pg_temp.statement_raises(
+    $$ select public.create_inaccuracy_report(
+         '12000000-0000-0000-0000-000000000001',
+         'outdated',
+         'Outdated information comment',
+         'guest-rpc-outdated'
+       ) $$
+  ),
+  'rpc accepts outdated reports'
+);
+
+select ok(
+  not pg_temp.statement_raises(
+    $$ select public.create_inaccuracy_report(
+         '12000000-0000-0000-0000-000000000001',
+         'other',
+         'Other reason comment',
+         'guest-rpc-other'
+       ) $$
+  ),
+  'rpc accepts other reports'
+);
+
+select ok(
+  not pg_temp.statement_raises(
+    $$ select public.create_inaccuracy_report(
+         '12000000-0000-0000-0000-000000000001',
+         'wrong_datetime',
+         'Rate limit first comment',
+         'guest-rpc-rate-limit'
+       ) $$
+  ),
+  'rpc allows the first report within the rate limit'
+);
+
+select ok(
+  not pg_temp.statement_raises(
+    $$ select public.create_inaccuracy_report(
+         '12000000-0000-0000-0000-000000000001',
+         'wrong_price',
+         'Rate limit second comment',
+         'guest-rpc-rate-limit'
+       ) $$
+  ),
+  'rpc allows the second report within the rate limit'
+);
+
+select ok(
+  not pg_temp.statement_raises(
+    $$ select public.create_inaccuracy_report(
+         '12000000-0000-0000-0000-000000000001',
+         'cancelled',
+         'Rate limit third comment',
+         'guest-rpc-rate-limit'
+       ) $$
+  ),
+  'rpc allows the third report within the rate limit'
+);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select public.create_inaccuracy_report(
+         '12000000-0000-0000-0000-000000000001',
+         'wrong_address',
+         'Rate limit fourth comment',
+         'guest-rpc-rate-limit'
+       ) $$
+  ),
+  'rpc rejects the fourth report within the rate limit window'
 );
 
 select ok(

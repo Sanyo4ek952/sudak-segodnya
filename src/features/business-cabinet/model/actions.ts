@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/shared/api/supabase/server";
-import type { Tables } from "@/shared/api/supabase/database.types";
+import type { Tables, TablesInsert, TablesUpdate } from "@/shared/api/supabase/database.types";
 import type {
   BusinessActionState,
   BusinessMenuCategory,
@@ -30,7 +30,7 @@ const publicationSchema = z.object({
   publicationId: z.string().uuid().optional().or(z.literal("")),
   type: z.enum(["event", "announcement", "promo", "regular", "news"]),
   title: z.string().trim().min(3).max(180),
-  description: z.string().trim().min(10).max(4000),
+  description: z.string().trim().max(4000).optional(),
   categoryId: uuidSchema,
   startsAt: z.string().optional(),
   endsAt: z.string().optional(),
@@ -83,6 +83,34 @@ function actionSuccess(message: string): BusinessActionState {
 
 function toDateTime(value: string | undefined) {
   return value ? new Date(value).toISOString() : null;
+}
+
+function toOptionalText(value: string | undefined) {
+  return value ? value : null;
+}
+
+function validatePublicationForStatus(data: z.infer<typeof publicationSchema>) {
+  if (data.status === "draft") {
+    return null;
+  }
+
+  if (!data.description || data.description.length < 10) {
+    return "Для публикации заполните описание минимум на 10 символов.";
+  }
+
+  if (!data.isFree && !data.priceText) {
+    return "Укажите цену или отметьте бесплатное участие.";
+  }
+
+  if (data.type === "event" && (!data.startsAt || !data.endsAt)) {
+    return "Для мероприятия укажите начало и окончание.";
+  }
+
+  if (data.type !== "event" && !data.validUntil) {
+    return "Укажите срок актуальности публикации.";
+  }
+
+  return null;
 }
 
 function makeSlug(title: string) {
@@ -413,6 +441,12 @@ export async function savePublicationAction(
     return actionError("Проверьте поля публикации.");
   }
 
+  const publicationReadinessError = validatePublicationForStatus(parsed.data);
+
+  if (publicationReadinessError) {
+    return actionError(publicationReadinessError);
+  }
+
   const membership = await assertBusinessMembership(parsed.data.organizationId);
   const userId = await getCurrentUserId();
 
@@ -432,25 +466,24 @@ export async function savePublicationAction(
     return actionError("Выбранная категория ленты не найдена.");
   }
 
+  const publishedAt = parsed.data.status === "published" ? new Date().toISOString() : null;
   const payload = {
-    organization_id: parsed.data.organizationId,
-    author_id: userId,
     type: parsed.data.type,
     status: parsed.data.status,
     title: parsed.data.title,
-    description: parsed.data.description,
+    description: toOptionalText(parsed.data.description),
     category_id: parsed.data.categoryId,
     starts_at: toDateTime(parsed.data.startsAt),
     ends_at: toDateTime(parsed.data.endsAt),
     valid_until: toDateTime(parsed.data.validUntil),
-    published_at: parsed.data.status === "published" ? new Date().toISOString() : null,
-    sort_published_at: parsed.data.status === "published" ? new Date().toISOString() : null,
-    place: parsed.data.place || null,
-    price_text: parsed.data.isFree ? "Бесплатно" : parsed.data.priceText || "Уточняйте",
+    published_at: publishedAt,
+    sort_published_at: publishedAt,
+    place: toOptionalText(parsed.data.place),
+    price_text: parsed.data.isFree ? "Бесплатно" : toOptionalText(parsed.data.priceText),
     is_free: parsed.data.isFree,
-    age_limit: parsed.data.ageLimit || null,
-    contact_phone: parsed.data.contactPhone || null
-  };
+    age_limit: toOptionalText(parsed.data.ageLimit),
+    contact_phone: toOptionalText(parsed.data.contactPhone)
+  } satisfies TablesUpdate<"publications">;
 
   let publication: Pick<Tables<"publications">, "id"> | null = null;
   let error;
@@ -476,12 +509,15 @@ export async function savePublicationAction(
     publication = result.data;
     error = result.error;
   } else {
+    const insertPayload = {
+      ...payload,
+      organization_id: parsed.data.organizationId,
+      author_id: userId,
+      slug: makeSlug(parsed.data.title)
+    } satisfies TablesInsert<"publications">;
     const result = await supabase
       .from("publications")
-      .insert({
-        ...payload,
-        slug: makeSlug(parsed.data.title)
-      })
+      .insert(insertPayload)
       .select("id")
       .single();
     publication = result.data;
@@ -576,12 +612,11 @@ export async function saveMenuCategoryAction(
 
   const supabase = await createSupabaseServerClient();
   const payload = {
-    organization_id: parsed.data.organizationId,
     name: parsed.data.name,
     description: parsed.data.description || null,
     sort_order: parsed.data.sortOrder,
     is_active: parsed.data.isActive
-  };
+  } satisfies TablesUpdate<"menu_categories">;
 
   const { error } = parsed.data.categoryId
     ? await supabase
@@ -589,7 +624,10 @@ export async function saveMenuCategoryAction(
         .update(payload)
         .eq("id", parsed.data.categoryId)
         .eq("organization_id", parsed.data.organizationId)
-    : await supabase.from("menu_categories").insert(payload);
+    : await supabase.from("menu_categories").insert({
+        ...payload,
+        organization_id: parsed.data.organizationId
+      } satisfies TablesInsert<"menu_categories">);
 
   if (error) {
     return actionError("Не получилось сохранить раздел меню.");
@@ -620,15 +658,28 @@ export async function saveMenuItemAction(
   }
 
   const supabase = await createSupabaseServerClient();
+
+  if (parsed.data.categoryId) {
+    const { data: category } = await supabase
+      .from("menu_categories")
+      .select("id")
+      .eq("id", parsed.data.categoryId)
+      .eq("organization_id", parsed.data.organizationId)
+      .maybeSingle();
+
+    if (!category) {
+      return actionError("Выбранный раздел меню не найден.");
+    }
+  }
+
   const payload = {
-    organization_id: parsed.data.organizationId,
     category_id: parsed.data.categoryId || null,
     title: parsed.data.title,
     description: parsed.data.description || null,
     price_text: parsed.data.priceText || null,
     sort_order: parsed.data.sortOrder,
     is_available: parsed.data.isAvailable
-  };
+  } satisfies TablesUpdate<"menu_items">;
 
   const { error } = parsed.data.itemId
     ? await supabase
@@ -636,7 +687,10 @@ export async function saveMenuItemAction(
         .update(payload)
         .eq("id", parsed.data.itemId)
         .eq("organization_id", parsed.data.organizationId)
-    : await supabase.from("menu_items").insert(payload);
+    : await supabase.from("menu_items").insert({
+        ...payload,
+        organization_id: parsed.data.organizationId
+      } satisfies TablesInsert<"menu_items">);
 
   if (error) {
     return actionError("Не получилось сохранить позицию меню.");

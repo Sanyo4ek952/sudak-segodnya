@@ -26,7 +26,7 @@ Enums:
 - `publication_status`: `draft`, `scheduled`, `moderation`, `published`, `cancelled`, `completed`, `hidden`, `blocked`;
 - `media_asset_purpose`: `organization_logo`, `organization_cover`, `application_confirmation`, `publication_photo`, `menu_item_photo`;
 - `media_asset_visibility`: `public`, `private`;
-- `inaccuracy_report_reason`: `wrong_datetime`, `wrong_price`, `cancelled`, `wrong_address`, `outdated`, `other`;
+- `inaccuracy_report_reason`: `wrong_datetime` — «Неверная дата или время», `wrong_price`, `cancelled`, `wrong_address`, `outdated`, `other`;
 - `inaccuracy_report_status`: `new`, `reviewing`, `resolved`, `rejected`;
 - `important_announcement_status`: `draft`, `active`, `expired`, `hidden`;
 - `analytics_event_name`: `organization_view`, `publication_view`, `phone_click`, `route_click`, `menu_open`, `favorite_add`.

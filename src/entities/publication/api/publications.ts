@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from "@/shared/api/supabase/server";
 import type { Database, Tables } from "@/shared/api/supabase/database.types";
-import type { Publication, PublicationCategory, PublicationStatus } from "@/entities/publication/model/types";
+import type { Publication, PublicationStatus } from "@/entities/publication/model/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ImportantAnnouncement = {
@@ -25,20 +25,6 @@ const publicationSelect = `
   publication_schedules(schedule_text, sort_order),
   media_assets(bucket_id, storage_path, purpose, sort_order)
 `;
-
-function isKnownCategory(value: string | null | undefined): value is PublicationCategory {
-  return (
-    value === "city" ||
-    value === "food" ||
-    value === "kids" ||
-    value === "culture" ||
-    value === "excursions" ||
-    value === "rental" ||
-    value === "shops" ||
-    value === "services" ||
-    value === "sport"
-  );
-}
 
 async function getImageUrl(
   supabase: SupabaseClient<Database>,
@@ -69,7 +55,7 @@ async function mapPublication(
     return null;
   }
 
-  const category = isKnownCategory(row.publication_categories?.slug) ? row.publication_categories.slug : "services";
+  const category = row.publication_categories?.slug ?? "services";
   const imageAsset = row.media_assets
     .slice()
     .sort((a, b) => a.sort_order - b.sort_order)

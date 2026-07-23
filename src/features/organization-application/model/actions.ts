@@ -19,9 +19,9 @@ const postgresUuidSchema = z.string().trim().regex(
 const applicationSchema = z.object({
   applicationId: postgresUuidSchema.optional().or(z.literal("")),
   organizationName: z.string().trim().min(2).max(160),
-  categoryId: postgresUuidSchema,
+  typeId: postgresUuidSchema,
   description: z.string().trim().min(10).max(2000),
-  address: z.string().trim().min(3).max(300),
+  address: z.string().trim().min(3).max(300).optional().or(z.literal("")),
   phone: z.string().trim().min(5).max(80),
   relationship: z.string().trim().min(3).max(500),
   confirmationInfo: z.string().trim().max(2000).optional()
@@ -164,7 +164,7 @@ async function saveApplication(formData: FormData) {
   const parsed = applicationSchema.safeParse({
     applicationId: getString(formData, "applicationId"),
     organizationName: getString(formData, "organizationName"),
-    categoryId: getString(formData, "categoryId"),
+    typeId: getString(formData, "typeId"),
     description: getString(formData, "description"),
     address: getString(formData, "address"),
     phone: getString(formData, "phone"),
@@ -179,23 +179,23 @@ async function saveApplication(formData: FormData) {
   const { data: category } = await supabase
     .from("organization_types")
     .select("id, name")
-    .eq("id", parsed.data.categoryId)
+    .eq("id", parsed.data.typeId)
     .eq("is_active", true)
     .maybeSingle();
 
   if (!category) {
     return {
       error: formError("Проверьте отмеченные поля и попробуйте снова.", {
-        categoryId: "Выбранный тип организации не найден или отключен. Выберите тип организации заново."
+        typeId: "Выбранный тип организации не найден или отключен. Выберите тип организации заново."
       })
     };
   }
 
   const payload = {
     organization_name: parsed.data.organizationName,
-    type_id: parsed.data.categoryId,
+    type_id: parsed.data.typeId,
     description: parsed.data.description,
-    address: parsed.data.address,
+    address: parsed.data.address || null,
     phone: parsed.data.phone,
     relationship: parsed.data.relationship,
     confirmation_info: parsed.data.confirmationInfo || null
