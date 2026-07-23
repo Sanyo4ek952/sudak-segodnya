@@ -314,11 +314,17 @@ production build, но не объявляются визуально просм
   `sudak-complete-expired-publications`;
 - demo содержит 9 организаций и отделён от production seed.
 
-Read-only remote-проверка linked project `mvestlctctcsukzwuqoo` до push
-подтвердила одну активную запись:
-`2174abb6-f545-4272-8cc7-81ee86461f12`,
-`codex-1784653614749-c3c4d448`. Миграции `170000`–`290000` на remote ещё не
-применены.
+Linked project `mvestlctctcsukzwuqoo` после push содержит remote history до
+`20260723290000`. Публичная remote-проверка exact id
+`2174abb6-f545-4272-8cc7-81ee86461f12` и slug
+`codex-1784653614749-c3c4d448` вернула 0 строк.
+
+Первое применение `20260723290000` безопасно откатилось: audit-trigger
+каскадно удаляемого membership пытался записать уже отсутствующий
+`organization_id`. Миграция исправлена — audited child rows отвязываются или
+удаляются до parent organization. Исправление воспроизведено на локальном
+fixture с membership и approved application, затем подтверждено clean reset и
+136/136 pgTAP. Повторный remote push прошёл.
 
 ## 8. Protected-экраны
 
@@ -421,9 +427,8 @@ npm run dev
 
 ## 12. Оставшиеся внешние действия
 
-1. Проверить linked Supabase project и сделать backup.
-2. Применить уже проверенные миграции сначала в staging, затем в production.
-3. Проверить production `pg_cron`, catalog и отсутствие Codex fixture.
-4. Выполнить remote smoke-test anon/owner/manager/admin.
-5. При доступном браузерном контроллере досмотреть submitted/needs_changes,
+1. Развернуть текущий application source в production после code review.
+2. Проверить production `pg_cron` через SQL Editor.
+3. Выполнить remote smoke-test anon/owner/manager/admin.
+4. При доступном браузерном контроллере досмотреть submitted/needs_changes,
    остальные admin-списки и menu-image flow.
