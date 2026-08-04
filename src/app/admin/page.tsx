@@ -1,14 +1,19 @@
 import { getAdminApplicationSummary } from "@/features/admin-application-review/model/actions";
 import { getAdminAnalyticsSummary, getAdminQualitySummary } from "@/features/admin-quality-control/model/actions";
+import { getPendingContentCandidateCount } from "@/features/content-ingestion/model/actions";
 import { LinkButton } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function AdminPage() {
-  const [summary, quality, analytics] = await Promise.all([
+  const [summary, quality, analytics, pendingImports] = await Promise.all([
     getAdminApplicationSummary(),
     getAdminQualitySummary(),
-    getAdminAnalyticsSummary()
+    getAdminAnalyticsSummary(),
+    getPendingContentCandidateCount()
   ]);
 
   return (
@@ -24,7 +29,7 @@ export default async function AdminPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardContent className="space-y-2">
             <p className="text-sm leading-6 text-foreground-muted">На рассмотрении</p>
@@ -40,6 +45,15 @@ export default async function AdminPage() {
             <p className="text-4xl font-semibold">{summary.needsChanges}</p>
             <LinkButton href="/admin/applications?status=needs_changes" variant="link">
               Открыть список
+            </LinkButton>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-2">
+            <p className="text-sm leading-6 text-foreground-muted">Материалы на проверке</p>
+            <p className="text-4xl font-semibold">{pendingImports}</p>
+            <LinkButton href="/admin/imports?status=pending" variant="link">
+              Открыть импорт
             </LinkButton>
           </CardContent>
         </Card>

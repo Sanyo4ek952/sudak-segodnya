@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { ApplicationReviewActions } from "@/features/admin-application-review/ui/application-review-actions";
-import { getAdminApplication } from "@/features/admin-application-review/model/actions";
+import {
+  getAdminApplication,
+  getOwnerlessImportedOrganizations
+} from "@/features/admin-application-review/model/actions";
 import { AuditHistory } from "@/features/admin-quality-control/ui/audit-history";
 import {
   getOrganizationApplicationStatusVariant,
@@ -32,7 +35,10 @@ export default async function AdminApplicationPage({
   params
 }: AdminApplicationPageProps) {
   const { id } = await params;
-  const application = await getAdminApplication(id);
+  const [application, importedOrganizations] = await Promise.all([
+    getAdminApplication(id),
+    getOwnerlessImportedOrganizations()
+  ]);
 
   if (!application) {
     notFound();
@@ -132,7 +138,11 @@ export default async function AdminApplicationPage({
         </CardContent>
       </Card>
 
-      <ApplicationReviewActions applicationId={application.id} status={application.status} />
+      <ApplicationReviewActions
+        applicationId={application.id}
+        status={application.status}
+        importedOrganizations={importedOrganizations}
+      />
     </div>
   );
 }

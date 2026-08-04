@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import {
   approveApplicationAction,
+  linkApplicationToExistingOrganizationAction,
   rejectApplicationAction,
   requestChangesApplicationAction
 } from "@/features/admin-application-review/model/actions";
@@ -16,16 +17,19 @@ import { Card, CardContent } from "@/shared/ui/card";
 import { Dialog } from "@/shared/ui/dialog";
 import { FormField } from "@/shared/ui/form-field";
 import { SubmitButton } from "@/shared/ui/submit-button";
+import { Select } from "@/shared/ui/select";
 import { Textarea } from "@/shared/ui/textarea";
 
 type ApplicationReviewActionsProps = {
   applicationId: string;
   status: "draft" | "submitted" | "needs_changes" | "approved" | "rejected";
+  importedOrganizations: Array<{ id: string; name: string; slug: string }>;
 };
 
 export function ApplicationReviewActions({
   applicationId,
-  status
+  status,
+  importedOrganizations
 }: ApplicationReviewActionsProps) {
   const [approveOpen, setApproveOpen] = useState(false);
   const [changesOpen, setChangesOpen] = useState(false);
@@ -69,6 +73,10 @@ export function ApplicationReviewActions({
     rejectWithClose,
     initialAdminActionState
   );
+  const [linkState, linkAction] = useActionState(
+    linkApplicationToExistingOrganizationAction,
+    initialAdminActionState
+  );
 
   if (status !== "submitted" && status !== "needs_changes") {
     return (
@@ -95,6 +103,33 @@ export function ApplicationReviewActions({
               Одобрить
             </Button>
             <AdminActionMessage state={approveState} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {status === "submitted" && importedOrganizations.length > 0 ? (
+        <Card>
+          <CardContent className="space-y-3">
+            <h2 className="text-lg font-semibold">Связать с импортированной организацией</h2>
+            <p className="text-sm leading-6 text-foreground-muted">
+              Дубликат не создаётся: заявитель станет владельцем существующей организации без активного владельца.
+            </p>
+            <form action={linkAction} className="space-y-3">
+              <input type="hidden" name="applicationId" value={applicationId} />
+              <FormField id="existingImportedOrganization" label="Организация">
+                <Select id="existingImportedOrganization" name="organizationId" required defaultValue="">
+                  <option value="" disabled>Выберите организацию</option>
+                  {importedOrganizations.map((organization) => (
+                    <option key={organization.id} value={organization.id}>{organization.name}</option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField id="linkApplicationComment" label="Комментарий проверки">
+                <Textarea id="linkApplicationComment" name="adminComment" required maxLength={2000} />
+              </FormField>
+              <AdminActionMessage state={linkState} />
+              <SubmitButton variant="outline" pendingLabel="Связываем...">Связать и назначить владельца</SubmitButton>
+            </form>
           </CardContent>
         </Card>
       ) : null}
