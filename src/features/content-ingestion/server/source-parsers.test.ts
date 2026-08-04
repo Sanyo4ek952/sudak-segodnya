@@ -21,6 +21,7 @@ describe("deterministic content source parsers", () => {
         <link>https://libsudak.ru/news/exhibition</link>
         <guid>library-42</guid>
         <description><![CDATA[<p>Официальное сообщение о новой выставке.</p>]]></description>
+        <enclosure url="https://libsudak.ru/images/exhibition.jpg" type="image/jpeg" />
         <pubDate>Tue, 04 Aug 2026 09:00:00 GMT</pubDate>
       </item></channel></rss>
     `, "https://libsudak.ru/news/rss/", cultureProfile);
@@ -35,6 +36,7 @@ describe("deterministic content source parsers", () => {
       expect(candidate.payload.title).toBe("Новая выставка \"Судак\"");
       expect(candidate.payload.type).toBe("news");
       expect(candidate.payload.validUntil).toBeNull();
+      expect(candidate.payload.imageSourceUrl).toBe("https://libsudak.ru/images/exhibition.jpg");
     }
     expect(candidate.warnings.join(" ")).toContain("закрытой очереди");
   });
@@ -53,6 +55,7 @@ describe("deterministic content source parsers", () => {
           "endDate": "2026-08-14T08:00:00.000Z",
           "location": {"@type":"Place","name":"Судакская крепость","address":"г. Судак"},
           "offers": {"@type":"Offer","price":0,"priceCurrency":"RUB"}
+          ,"image": {"@type":"ImageObject","contentUrl":"https://www.culture.ru/images/event.webp"}
         }
       </script>`;
 
@@ -66,6 +69,43 @@ describe("deterministic content source parsers", () => {
       expect(candidate.payload.organizationName).toBe("Судакская крепость");
       expect(candidate.payload.isFree).toBe(true);
       expect(candidate.payload.priceText).toBe("0 ₽");
+      expect(candidate.payload.imageSourceUrl).toBe("https://www.culture.ru/images/event.webp");
+    }
+  });
+
+  it("extracts organization JSON-LD images", () => {
+    const batches = parseJsonLdCandidateBatches(`<script type="application/ld+json">{
+      "@type":"Organization",
+      "name":"Городская библиотека",
+      "description":"Официальная библиотека Судака.",
+      "url":"https://libsudak.ru/",
+      "image":["https://libsudak.ru/images/library.png"]
+    }</script>`, "https://libsudak.ru/", cultureProfile);
+    const candidate = batches[0]?.candidates[0];
+    expect(candidate?.payload.kind).toBe("organization");
+    if (candidate?.payload.kind === "organization") {
+      expect(candidate.payload.imageSourceUrl).toBe("https://libsudak.ru/images/library.png");
+    }
+  });
+
+  it("extracts Atom media thumbnails and HTML image fallbacks", () => {
+    const [mediaBatch] = parseRssCandidateBatches(`<feed><entry>
+      <title>Афиша библиотеки</title>
+      <link href="https://libsudak.ru/news/poster" />
+      <id>poster-1</id>
+      <summary>Официальная афиша городской библиотеки.</summary>
+      <media:thumbnail url="https://libsudak.ru/images/poster.webp" />
+    </entry></feed>`, "https://libsudak.ru/news/rss/", cultureProfile);
+    const [markupBatch] = parseRssCandidateBatches(`<rss><channel><item>
+      <title>Новая выставка</title><link>https://libsudak.ru/news/gallery</link>
+      <description><![CDATA[<p>Описание выставки.</p><img src="https://libsudak.ru/images/gallery.png" />]]></description>
+    </item></channel></rss>`, "https://libsudak.ru/news/rss/", cultureProfile);
+
+    if (mediaBatch.candidates[0].payload.kind === "publication") {
+      expect(mediaBatch.candidates[0].payload.imageSourceUrl).toBe("https://libsudak.ru/images/poster.webp");
+    }
+    if (markupBatch.candidates[0].payload.kind === "publication") {
+      expect(markupBatch.candidates[0].payload.imageSourceUrl).toBe("https://libsudak.ru/images/gallery.png");
     }
   });
 

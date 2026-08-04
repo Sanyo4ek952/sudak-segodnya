@@ -117,6 +117,13 @@ export default async function AdminOrganizationsPage({ searchParams }: AdminOrga
                   organizationId={organization.id}
                   status={organization.status}
                 />
+                <LinkButton
+                  href={`/admin/organizations/${organization.id}`}
+                  variant="outline"
+                  size="sm"
+                >
+                  Редактировать информацию
+                </LinkButton>
               </CardContent>
             </Card>
           ))}

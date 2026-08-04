@@ -54,11 +54,31 @@ describe("PublicationCard regressions", () => {
           schedule: undefined,
           scheduleEntries: [],
           place: "Судак",
-          priceText: "Не применяется"
+          priceText: "Не применяется",
+          publishedAt: "2026-07-23T10:00:00+03:00"
         }}
       />
     );
     expect(countText(markup, "Новость")).toBe(1);
+    expect(markup).toContain("23 июля 2026");
+    expect(markup).not.toContain("до 30 июля 2026");
+    expect(markup).not.toContain("Цена:");
+  });
+
+  it("does not show a price for an announcement", () => {
+    const markup = renderToStaticMarkup(
+      <PublicationCard
+        publication={{
+          ...basePublication,
+          type: "announcement",
+          schedule: undefined,
+          scheduleEntries: [],
+          priceText: "Не указано"
+        }}
+      />
+    );
+
+    expect(markup).not.toContain("Цена:");
   });
 
   it("describes cancellation with text and not only color", () => {

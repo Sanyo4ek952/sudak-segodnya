@@ -7,6 +7,10 @@ import { createSupabaseServerClient } from "@/shared/api/supabase/server";
 import type { TablesInsert, TablesUpdate } from "@/shared/api/supabase/database.types";
 import { postgresUuidSchema } from "@/shared/lib/postgres-uuid";
 import type {
+  BusinessOrganization,
+  BusinessPublication
+} from "@/features/business-cabinet/model/types";
+import type {
   AdminActionState,
   AdminAuditFilter,
   AdminAuditListItem,
@@ -190,6 +194,89 @@ export async function getAdminOrganizations({
   }
 
   return { items: (data ?? []) as AdminOrganizationListItem[], page: safePage, pageSize, total: count ?? 0 };
+}
+
+export async function getAdminOrganization(organizationId: string) {
+  await assertAdmin();
+  const parsedId = uuidSchema.safeParse(organizationId);
+
+  if (!parsedId.success) {
+    return null;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("organizations")
+    .select(`
+      *,
+      organization_types:organization_types!organizations_category_id_fkey(id, name, slug),
+      media_assets(id, bucket_id, storage_path, purpose, sort_order, deleted_at)
+    `)
+    .eq("id", parsedId.data)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  const organization = data as BusinessOrganization;
+
+  for (const asset of organization.media_assets) {
+    if (asset.deleted_at || !["organization_logo", "organization_cover"].includes(asset.purpose)) {
+      continue;
+    }
+
+    const { data: signedImage } = await supabase.storage
+      .from(asset.bucket_id)
+      .createSignedUrl(asset.storage_path, 60 * 10);
+
+    if (asset.purpose === "organization_logo") {
+      organization.logoUrl = signedImage?.signedUrl;
+    } else {
+      organization.coverUrl = signedImage?.signedUrl;
+    }
+  }
+
+  return organization;
+}
+
+export async function getAdminPublication(publicationId: string) {
+  await assertAdmin();
+  const parsedId = uuidSchema.safeParse(publicationId);
+
+  if (!parsedId.success) {
+    return null;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("publications")
+    .select(`
+      *,
+      publication_categories(id, name, slug),
+      publication_schedules(id, schedule_text, weekday, starts_at, ends_at, sort_order, timezone),
+      media_assets(id, bucket_id, storage_path, purpose, sort_order, deleted_at)
+    `)
+    .eq("id", parsedId.data)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  const publication = data as BusinessPublication;
+  const imageAsset = publication.media_assets.find(
+    (asset) => !asset.deleted_at && asset.purpose === "publication_photo"
+  );
+
+  if (imageAsset) {
+    const { data: signedImage } = await supabase.storage
+      .from(imageAsset.bucket_id)
+      .createSignedUrl(imageAsset.storage_path, 60 * 10);
+    publication.imageUrl = signedImage?.signedUrl;
+  }
+
+  return publication;
 }
 
 export async function getAdminReports({

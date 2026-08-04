@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { savePublicationAction } from "@/features/business-cabinet/model/actions";
 import {
+  businessPublicationFieldRules,
   businessPublicationTypeLabels,
   initialBusinessActionState
 } from "@/features/business-cabinet/model/types";
@@ -94,12 +95,14 @@ export function PublicationForm({
   organizationId,
   publication,
   categories,
+  organizationAddress,
   draftPublicationId,
   clientRequestId
 }: {
   organizationId: string;
   publication?: BusinessPublication | null;
   categories: Array<Pick<Tables<"publication_categories">, "id" | "name">>;
+  organizationAddress?: string | null;
   draftPublicationId: string;
   clientRequestId: string;
 }) {
@@ -113,7 +116,7 @@ export function PublicationForm({
   const [endsAt, setEndsAt] = useState(toInputDateTime(publication?.ends_at));
   const [validUntil, setValidUntil] = useState(toInputDateTime(publication?.valid_until));
   const [publishAt, setPublishAt] = useState(toInputDateTime(publication?.publish_at));
-  const [place, setPlace] = useState(publication?.place ?? "");
+  const [place, setPlace] = useState(publication?.place ?? organizationAddress ?? "");
   const [priceText, setPriceText] = useState(publication?.price_text ?? "");
   const [isFree, setIsFree] = useState(publication?.is_free ?? false);
   const [ageLimit, setAgeLimit] = useState(publication?.age_limit ?? "");
@@ -148,13 +151,16 @@ export function PublicationForm({
     : currentStatus === "scheduled"
       ? "schedule"
       : "draft";
-  const showPlace = type === "event" || type === "regular";
-  const showPrice = type !== "news";
+  const fieldRules = businessPublicationFieldRules[type];
+  const showPlace = fieldRules.place;
+  const showPrice = fieldRules.price;
   const previewTiming = type === "event"
     ? `${formatPreviewDate(startsAt)} — ${formatPreviewDate(endsAt)}`
     : type === "regular"
       ? scheduleEntries.map((entry) => entry.scheduleText).filter(Boolean).join(", ") || "Расписание не указано"
-      : `Актуально до ${formatPreviewDate(validUntil)}`;
+      : type === "news"
+        ? "Дата публикации появится после публикации"
+        : `Актуально до ${formatPreviewDate(validUntil)}`;
 
   function updateScheduleEntry(
     index: number,
@@ -278,14 +284,18 @@ export function PublicationForm({
       <section hidden={step !== 2} className="space-y-4" aria-labelledby="publication-step-time">
         <div className="space-y-1">
           <h2 id="publication-step-time" className="text-xl font-semibold">
-            {type === "event" ? "Когда проходит мероприятие" : "Срок актуальности"}
+            {fieldRules.eventDates ? "Когда проходит мероприятие" : "Срок актуальности"}
           </h2>
           <p className="text-sm leading-6 text-foreground-muted">
-            Время интерпретируется в часовом поясе Судака — Europe/Moscow.
+            {type === "news"
+              ? "У новости нет даты события: в публичной части показывается дата публикации. После срока актуальности новость уйдёт из ленты."
+              : fieldRules.eventDates
+                ? "Время интерпретируется в часовом поясе Судака — Europe/Moscow."
+                : "Дата начала и окончания события для этого типа не используется. Укажите только срок актуальности."}
           </p>
         </div>
 
-        {type === "event" ? (
+        {fieldRules.eventDates ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField id="startsAt" label="Начало">
               <Input
@@ -321,22 +331,22 @@ export function PublicationForm({
           </FormField>
         )}
 
-        {type === "regular" ? (
+        {fieldRules.schedule ? (
           <div className="space-y-4 rounded-md border border-border bg-surface-muted p-4">
             <div className="space-y-1">
               <h3 className="font-semibold">Регулярное расписание</h3>
               <p className="text-sm text-foreground-muted">
-                Структурированные дни и время используются фильтрами «Сегодня» и «Завтра».
+                Добавьте отдельный интервал для каждого дня и времени. Эти поля используются фильтрами «Сегодня» и «Завтра».
               </p>
             </div>
             {scheduleEntries.map((entry, index) => (
               <div key={index} className="space-y-3 rounded-md border border-border bg-surface p-3">
-                <FormField id={`scheduleText-${index}`} label="Пояснение">
+                <FormField id={`scheduleText-${index}`} label="Как показать расписание">
                   <Input
                     id={`scheduleText-${index}`}
                     value={entry.scheduleText}
                     onChange={(event) => updateScheduleEntry(index, { scheduleText: event.target.value })}
-                    placeholder="Например: по будням, кроме праздников"
+                    placeholder="Например: каждый понедельник"
                     required
                   />
                 </FormField>
@@ -425,7 +435,11 @@ export function PublicationForm({
           </p>
         </div>
         {showPlace ? (
-          <FormField id="place" label="Место">
+          <FormField
+            id="place"
+            label="Место"
+            hint="Адрес подставлен из профиля организации. Здесь его можно изменить только для этой публикации."
+          >
             <Input
               id="place"
               name="place"
@@ -467,7 +481,7 @@ export function PublicationForm({
           </>
         )}
         <div className="grid gap-4 sm:grid-cols-2">
-          {(type === "event" || type === "regular") ? (
+          {fieldRules.ageLimit ? (
             <FormField id="ageLimit" label="Возрастное ограничение">
               <Input
                 id="ageLimit"
@@ -480,15 +494,19 @@ export function PublicationForm({
           ) : (
             <input type="hidden" name="ageLimit" value="" />
           )}
-          <FormField id="contactPhone" label="Телефон для уточнений">
-            <Input
-              id="contactPhone"
-              name="contactPhone"
-              type="tel"
-              value={contactPhone}
-              onChange={(event) => setContactPhone(event.target.value)}
-            />
-          </FormField>
+          {fieldRules.contactPhone ? (
+            <FormField id="contactPhone" label="Телефон для уточнений">
+              <Input
+                id="contactPhone"
+                name="contactPhone"
+                type="tel"
+                value={contactPhone}
+                onChange={(event) => setContactPhone(event.target.value)}
+              />
+            </FormField>
+          ) : (
+            <input type="hidden" name="contactPhone" value="" />
+          )}
         </div>
       </section>
 
@@ -588,7 +606,7 @@ export function PublicationForm({
             </div>
             <dl className="grid gap-2 text-sm">
               <div className="flex gap-2">
-                <dt className="font-medium">Когда:</dt>
+                <dt className="font-medium">{type === "news" ? "Дата:" : "Когда:"}</dt>
                 <dd className="text-foreground-muted">{previewTiming}</dd>
               </div>
               {showPlace && place ? (

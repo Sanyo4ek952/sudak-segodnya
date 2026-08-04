@@ -59,11 +59,15 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
   }
 
   const eventJsonLd = createEventJsonLd(seoPublication);
-  const dateLabel = publication.startsAt
-    ? `${formatDateTime(publication.startsAt)}${publication.endsAt ? ` — ${formatDateTime(publication.endsAt)}` : ""}`
-    : publication.validUntil
-      ? `Актуально до ${formatDate(publication.validUntil)}`
-      : publication.schedule ?? "Актуально";
+  const dateLabel = publication.type === "news"
+    ? publication.publishedAt
+      ? formatDate(publication.publishedAt)
+      : "Дата публикации не указана"
+    : publication.startsAt
+      ? `${formatDateTime(publication.startsAt)}${publication.endsAt ? ` — ${formatDateTime(publication.endsAt)}` : ""}`
+      : publication.validUntil
+        ? `Актуально до ${formatDate(publication.validUntil)}`
+        : publication.schedule ?? "Актуально";
 
   return (
     <article className="mx-auto max-w-3xl space-y-6">
@@ -138,7 +142,9 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
         <CardContent>
           <dl className="grid gap-4 text-sm sm:grid-cols-2">
             <div>
-              <dt className="font-medium text-foreground-muted">Когда</dt>
+              <dt className="font-medium text-foreground-muted">
+                {publication.type === "news" ? "Дата публикации" : "Когда"}
+              </dt>
               <dd className="mt-1 text-base font-semibold">{publication.schedule ?? dateLabel}</dd>
             </div>
             {(publication.type === "event" || publication.type === "regular") && publication.place ? (
@@ -147,7 +153,7 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
                 <dd className="mt-1 text-base font-semibold">{publication.place}</dd>
               </div>
             ) : null}
-            {publication.type !== "news" && publication.priceText ? (
+            {["event", "promo", "regular"].includes(publication.type) && publication.priceText ? (
               <div>
                 <dt className="font-medium text-foreground-muted">Цена</dt>
                 <dd className="mt-1 text-base font-semibold">{publication.priceText}</dd>

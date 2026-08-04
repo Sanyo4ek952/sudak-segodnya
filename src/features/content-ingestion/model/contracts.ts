@@ -64,7 +64,8 @@ export const organizationCandidatePayloadSchema = z.object({
   address: optionalNullableText(500),
   phone: optionalNullableText(80),
   workingHours: optionalNullableText(1000),
-  contactLinks: z.array(contactLinkSchema).max(20).default([])
+  contactLinks: z.array(contactLinkSchema).max(20).default([]),
+  imageSourceUrl: httpsUrlSchema.nullable().default(null)
 }).strict();
 
 export const publicationCandidatePayloadSchema = z.object({
@@ -168,7 +169,8 @@ export function getCandidatePublishWarnings(payload: ContentCandidatePayload, no
     return [
       !payload.description ? "Добавьте описание организации." : null,
       !payload.phone ? "Добавьте телефон организации." : null,
-      !payload.typeSlug ? "Выберите тип организации." : null
+      !payload.typeSlug ? "Выберите тип организации." : null,
+      !payload.imageSourceUrl ? "Источник не предоставил изображение; будет использована нейтральная заглушка." : null
     ].filter((warning): warning is string => Boolean(warning));
   }
 
@@ -178,6 +180,9 @@ export function getCandidatePublishWarnings(payload: ContentCandidatePayload, no
   }
   if (!payload.organizationId) {
     warnings.push("Свяжите материал с активной организацией.");
+  }
+  if (!payload.imageSourceUrl) {
+    warnings.push("Источник не предоставил изображение; будет использована нейтральная заглушка.");
   }
   if (payload.type === "event") {
     if (!payload.startsAt || !payload.endsAt) {

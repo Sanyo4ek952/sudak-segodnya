@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   hasExplicitCancellationEvidence,
-  isCandidateStale
+  isCandidateStale,
+  selectOrganizationEvidence
 } from "@/features/content-ingestion/model/candidate-rules";
 import type { PublicationCandidatePayload } from "@/features/content-ingestion/model/contracts";
 
@@ -39,5 +40,22 @@ describe("candidate business rules", () => {
     expect(hasExplicitCancellationEvidence([
       { field: "status", excerpt: "Расписание может измениться", sourceUrl: "https://example.com/event" }
     ])).toBe(false);
+  });
+
+  it("uses verified publication evidence when an organization-specific field is unavailable", () => {
+    const evidence = [
+      { field: "title", excerpt: "Official source title", sourceUrl: "https://example.com/event" },
+      { field: "description", excerpt: "Official source description", sourceUrl: "https://example.com/event" }
+    ];
+    expect(selectOrganizationEvidence(evidence)).toEqual(evidence);
+  });
+
+  it("prefers organization-specific evidence when it is available", () => {
+    expect(selectOrganizationEvidence([
+      { field: "title", excerpt: "Event title", sourceUrl: "https://example.com/event" },
+      { field: "organizationName", excerpt: "Official organization", sourceUrl: "https://example.com/event" }
+    ])).toEqual([
+      { field: "organizationName", excerpt: "Official organization", sourceUrl: "https://example.com/event" }
+    ]);
   });
 });

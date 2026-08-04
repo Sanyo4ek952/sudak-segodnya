@@ -244,11 +244,13 @@ async function removePublicationImage(
   organizationId: string,
   publicationId: string
 ): Promise<BusinessActionState> {
-  if (!(await assertBusinessMembership(organizationId))) {
+  const supabase = await createSupabaseServerClient();
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+
+  if (!isAdmin && !(await assertBusinessMembership(organizationId))) {
     return actionError("Нет доступа к этой организации.");
   }
 
-  const supabase = await createSupabaseServerClient();
   const { data: publication } = await supabase
     .from("publications")
     .select("id")
@@ -367,11 +369,13 @@ async function removeOrganizationImage(
   organizationId: string,
   purpose: OrganizationImagePurpose
 ): Promise<BusinessActionState> {
-  if (!(await assertBusinessMembership(organizationId))) {
+  const supabase = await createSupabaseServerClient();
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+
+  if (!isAdmin && !(await assertBusinessMembership(organizationId))) {
     return actionError("Нет доступа к этой организации.");
   }
 
-  const supabase = await createSupabaseServerClient();
   const { data: asset } = await supabase
     .from("media_assets")
     .select("id, bucket_id, storage_path")
@@ -1167,29 +1171,55 @@ export async function updateOrganizationProfileAction(
     return actionError("Проверьте данные профиля организации.");
   }
 
-  const membership = await assertBusinessMembership(parsed.data.organizationId);
+  const supabase = await createSupabaseServerClient();
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+  const membership = isAdmin
+    ? null
+    : await assertBusinessMembership(parsed.data.organizationId);
 
-  if (!membership) {
+  if (!isAdmin && !membership) {
     return actionError("Нет доступа к этой организации.");
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { data: updatedOrganization, error } = await supabase.rpc("update_member_organization_profile_v2", {
-    p_organization_id: parsed.data.organizationId,
-    p_type_id: parsed.data.typeId,
-    p_name: parsed.data.name,
-    p_description: parsed.data.description,
-    p_address: parsed.data.address,
-    p_phone: parsed.data.phone,
-    p_working_hours: parsed.data.workingHours ?? "",
-    p_latitude: parsed.data.latitude === "" ? null : parsed.data.latitude,
-    p_longitude: parsed.data.longitude === "" ? null : parsed.data.longitude,
-    p_contact_links: {
-      ...(parsed.data.website ? { website: parsed.data.website } : {}),
-      ...(parsed.data.telegram ? { telegram: parsed.data.telegram } : {}),
-      ...(parsed.data.vk ? { vk: parsed.data.vk } : {})
-    }
-  });
+  const contactLinks = {
+    ...(parsed.data.website ? { website: parsed.data.website } : {}),
+    ...(parsed.data.telegram ? { telegram: parsed.data.telegram } : {}),
+    ...(parsed.data.vk ? { vk: parsed.data.vk } : {})
+  };
+  const updateResult = isAdmin
+    ? await supabase
+        .from("organizations")
+        .update({
+          type_id: parsed.data.typeId,
+          pending_type_id: null,
+          type_change_requested_at: null,
+          type_change_requested_by: null,
+          name: parsed.data.name,
+          description: parsed.data.description,
+          address: parsed.data.address,
+          phone: parsed.data.phone,
+          working_hours: parsed.data.workingHours || null,
+          latitude: parsed.data.latitude === "" ? null : parsed.data.latitude,
+          longitude: parsed.data.longitude === "" ? null : parsed.data.longitude,
+          contact_links: contactLinks,
+          last_public_update_at: new Date().toISOString()
+        } satisfies TablesUpdate<"organizations">)
+        .eq("id", parsed.data.organizationId)
+        .select("*")
+        .maybeSingle()
+    : await supabase.rpc("update_member_organization_profile_v2", {
+        p_organization_id: parsed.data.organizationId,
+        p_type_id: parsed.data.typeId,
+        p_name: parsed.data.name,
+        p_description: parsed.data.description,
+        p_address: parsed.data.address,
+        p_phone: parsed.data.phone,
+        p_working_hours: parsed.data.workingHours ?? "",
+        p_latitude: parsed.data.latitude === "" ? null : parsed.data.latitude,
+        p_longitude: parsed.data.longitude === "" ? null : parsed.data.longitude,
+        p_contact_links: contactLinks
+      });
+  const { data: updatedOrganization, error } = updateResult;
 
   if (error) {
     return actionError("Не получилось обновить профиль организации.");
@@ -1209,6 +1239,8 @@ export async function updateOrganizationProfileAction(
     }
 
     revalidatePath(`/business/${parsed.data.organizationId}/profile`);
+    revalidatePath(`/admin/organizations/${parsed.data.organizationId}`);
+    revalidatePath("/admin/organizations");
     revalidatePath("/organizations");
     return {
       ...actionSuccess(uploadField === "logo" ? "Логотип обновлён." : "Обложка обновлена."),
@@ -1220,9 +1252,11 @@ export async function updateOrganizationProfileAction(
 
   revalidatePath(`/business/${parsed.data.organizationId}`);
   revalidatePath(`/business/${parsed.data.organizationId}/profile`);
+  revalidatePath(`/admin/organizations/${parsed.data.organizationId}`);
+  revalidatePath("/admin/organizations");
   revalidatePath("/organizations");
   return actionSuccess(
-    updatedOrganization?.pending_type_id
+    !isAdmin && updatedOrganization?.pending_type_id
       ? "Профиль обновлён. Смена основного типа отправлена администратору на проверку."
       : "Профиль организации обновлён."
   );

@@ -38,6 +38,65 @@ export const businessPublicationTypeLabels = {
   news: "Новость"
 } satisfies Record<Tables<"publications">["type"], string>;
 
+export const businessPublicationFieldRules = {
+  event: {
+    eventDates: true,
+    validUntil: false,
+    schedule: false,
+    place: true,
+    price: true,
+    ageLimit: true,
+    contactPhone: true
+  },
+  announcement: {
+    eventDates: false,
+    validUntil: true,
+    schedule: false,
+    place: false,
+    price: false,
+    ageLimit: false,
+    contactPhone: true
+  },
+  promo: {
+    eventDates: false,
+    validUntil: true,
+    schedule: false,
+    place: false,
+    price: true,
+    ageLimit: false,
+    contactPhone: true
+  },
+  regular: {
+    eventDates: false,
+    validUntil: true,
+    schedule: true,
+    place: true,
+    price: true,
+    ageLimit: true,
+    contactPhone: true
+  },
+  news: {
+    eventDates: false,
+    validUntil: true,
+    schedule: false,
+    place: false,
+    price: false,
+    ageLimit: false,
+    contactPhone: false
+  }
+} as const satisfies Record<
+  Tables<"publications">["type"],
+  {
+    eventDates: boolean;
+    validUntil: boolean;
+    schedule: boolean;
+    place: boolean;
+    price: boolean;
+    ageLimit: boolean;
+    contactPhone: boolean;
+  }
+>;
+
 export type BusinessOrganization = Tables<"organizations"> & {
   organization_types: Pick<Tables<"organization_types">, "id" | "name" | "slug"> | null;
   media_assets: Array<

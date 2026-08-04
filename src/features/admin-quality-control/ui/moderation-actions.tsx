@@ -95,7 +95,11 @@ export function PublicationModerationActions({
           <form action={action} className="space-y-4">
             <input type="hidden" name="publicationId" value={publicationId} />
             <input type="hidden" name="status" value={nextStatus} />
-            <FormField id={`publication-reason-${publicationId}`} label="Причина действия">
+            <FormField
+              id={`publication-reason-${publicationId}`}
+              label="Причина действия"
+              hint="Внутренний комментарий: посетители не увидят его в публичной части."
+            >
               <Textarea
                 id={`publication-reason-${publicationId}`}
                 name="comment"
@@ -165,7 +169,11 @@ export function OrganizationModerationActions({
           <form action={action} className="space-y-4">
             <input type="hidden" name="organizationId" value={organizationId} />
             <input type="hidden" name="status" value={nextStatus} />
-            <FormField id={`organization-reason-${organizationId}`} label="Причина действия">
+            <FormField
+              id={`organization-reason-${organizationId}`}
+              label="Причина действия"
+              hint="Внутренний комментарий: посетители не увидят его в публичной части."
+            >
               <Textarea
                 id={`organization-reason-${organizationId}`}
                 name="comment"
@@ -240,7 +248,11 @@ export function OrganizationTypeReviewActions({
           <form action={action} className="space-y-4">
             <input type="hidden" name="organizationId" value={organizationId} />
             <input type="hidden" name="approve" value={decision === "approve" ? "true" : "false"} />
-            <FormField id={`type-review-reason-${organizationId}`} label="Комментарий">
+            <FormField
+              id={`type-review-reason-${organizationId}`}
+              label="Комментарий"
+              hint="Внутренний комментарий: посетители не увидят его в публичной части."
+            >
               <Textarea
                 id={`type-review-reason-${organizationId}`}
                 name="reason"
@@ -266,4 +278,3 @@ export function OrganizationTypeReviewActions({
     </div>
   );
 }
-

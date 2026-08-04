@@ -119,7 +119,7 @@ export function normalizeSourceUrl(value: string) {
   return url.toString();
 }
 
-async function resolvePublicAddress(hostname: string, timeoutMs: number) {
+export async function resolvePublicAddress(hostname: string, timeoutMs: number) {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error("DNS источника не ответил вовремя.")), timeoutMs);

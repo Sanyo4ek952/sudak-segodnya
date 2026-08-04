@@ -31,10 +31,12 @@ function getContactLink(organization: BusinessOrganization, key: string) {
 
 export function OrganizationProfileForm({
   organization,
-  organizationTypes
+  organizationTypes,
+  isAdminEditor = false
 }: {
   organization: BusinessOrganization;
   organizationTypes: Array<Pick<Tables<"organization_types">, "id" | "name">>;
+  isAdminEditor?: boolean;
 }) {
   const [state, action] = useActionState(updateOrganizationProfileAction, initialBusinessActionState);
   const [localLogoUrl, setLocalLogoUrl] = useState<string>();
@@ -67,7 +69,9 @@ export function OrganizationProfileForm({
         <FormField
           id="typeId"
           label="Основной тип"
-          hint="Изменение типа вступит в силу только после проверки администратора."
+          hint={isAdminEditor
+            ? "Администратор меняет основной тип сразу."
+            : "Изменение типа вступит в силу только после проверки администратора."}
         >
           <Select
             id="typeId"
@@ -80,7 +84,7 @@ export function OrganizationProfileForm({
             ))}
           </Select>
         </FormField>
-        {organization.pending_type_id ? (
+        {organization.pending_type_id && !isAdminEditor ? (
           <p className="rounded-md bg-warning/10 p-3 text-sm text-foreground">
             Запрос на смену основного типа ожидает проверки администратора.
           </p>
@@ -243,7 +247,7 @@ export function OrganizationProfileForm({
 
       <BusinessActionMessage state={state} />
       <SubmitButton name="intent" value="save" pendingLabel="Сохраняем...">
-        Сохранить профиль
+        {isAdminEditor ? "Сохранить изменения" : "Сохранить профиль"}
       </SubmitButton>
     </form>
   );

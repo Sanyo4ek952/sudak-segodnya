@@ -110,6 +110,41 @@ function pageTitle(html: string) {
   return cleanMarkup(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "", 180);
 }
 
+function firstSrcsetUrl(value: string | null) {
+  return value?.split(",")[0]?.trim().split(/\s+/)[0] ?? null;
+}
+
+function imageFromHtml(html: string, baseUrl: string) {
+  const openGraph = resolveHttpsUrl(metaContent(html, "og:image"), baseUrl);
+  if (openGraph) return openGraph;
+
+  for (const match of Array.from(html.matchAll(/<(?:img|source)\b([^>]*)>/gi))) {
+    const attributes = match[1] ?? "";
+    const candidate = htmlAttribute(attributes, "src")
+      ?? htmlAttribute(attributes, "data-src")
+      ?? htmlAttribute(attributes, "data-lazy-src")
+      ?? firstSrcsetUrl(htmlAttribute(attributes, "srcset"));
+    const resolved = resolveHttpsUrl(candidate, baseUrl);
+    if (resolved) return resolved;
+  }
+
+  const cssUrl = html.match(/background-image\s*:\s*url\(\s*["']?([^"')]+)["']?\s*\)/i)?.[1];
+  return resolveHttpsUrl(cssUrl, baseUrl);
+}
+
+function withImageFallback(batches: SourceCandidateBatch[], imageSourceUrl: string | null) {
+  if (!imageSourceUrl) return batches;
+  return batches.map((batch) => ({
+    ...batch,
+    candidates: batch.candidates.map((candidate) => ({
+      ...candidate,
+      payload: candidate.payload.imageSourceUrl
+        ? candidate.payload
+        : { ...candidate.payload, imageSourceUrl }
+    }))
+  }));
+}
+
 function textByClass(html: string, classFragment: string, maximum: number) {
   const escaped = classFragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = html.match(new RegExp(
@@ -151,7 +186,10 @@ async function fetchDetailBatches(
 }
 
 function cultureDetailBatches(fetched: SafeFetchResult, profile: SourceProfile) {
-  return parseJsonLdCandidateBatches(fetched.body, fetched.finalUrl, profile);
+  return withImageFallback(
+    parseJsonLdCandidateBatches(fetched.body, fetched.finalUrl, profile),
+    imageFromHtml(fetched.body, fetched.finalUrl)
+  );
 }
 
 const cultureAdapter: SourceAdapter = {
@@ -185,6 +223,7 @@ function tavridaCardBatches(fetched: SafeFetchResult, profile: SourceProfile) {
       type: "news",
       title,
       description,
+      imageSourceUrl: imageFromHtml(body, sourceUrl),
       warnings: [
         "Материал подготовлен адаптером официального сайта Тавриды и оставлен в закрытой очереди.",
         published ? `Дата исходного материала: ${published}.` : "Дата исходного материала не указана."
@@ -251,7 +290,7 @@ function aquaparkDetailBatches(fetched: SafeFetchResult, profile: SourceProfile)
     isFree: /\bбесплатн\w*/i.test(visible),
     place: "Аквапарк «Судак», ул. Гагарина, 79",
     contactPhone: "+7 (978) 567-94-71",
-    imageSourceUrl: metaContent(fetched.body, "og:image"),
+    imageSourceUrl: imageFromHtml(fetched.body, fetched.finalUrl),
     warnings: [
       "Акция подготовлена адаптером официального сайта Аквапарка и оставлена в закрытой очереди.",
       "Перед одобрением проверьте ограничения, документы и базовую стоимость на странице источника."
@@ -311,6 +350,7 @@ function meganomBatches(fetched: SafeFetchResult, profile: SourceProfile) {
     isFree: /\bбесплатн\w*/i.test(visible),
     ageLimit,
     contactPhone: "8 (800) 551-44-40",
+    imageSourceUrl: imageFromHtml(fetched.body, fetched.finalUrl),
     scheduleEntries: daily ? [{
       scheduleText: "Ежедневно, по предварительной регистрации",
       weekday: null,
@@ -351,6 +391,7 @@ function unknownHtmlBatch(fetched: SafeFetchResult, profile: SourceProfile) {
     externalId: fetched.finalUrl,
     title,
     description,
+    imageSourceUrl: imageFromHtml(fetched.body, fetched.finalUrl),
     warnings: [
       "Для источника нет утверждённого адаптера; материал оставлен в закрытой очереди.",
       "Codex должен проверить источник и подготовить отдельный адаптер перед регулярным импортом."
@@ -377,7 +418,11 @@ export async function extractSourceCandidates({
 
   const jsonLd = parseJsonLdCandidateBatches(fetched.body, fetched.finalUrl, profile);
   if (jsonLd.length > 0) {
-    return { adapterId: "schema-org-json-ld-v1", format: "json_ld", batches: jsonLd };
+    return {
+      adapterId: "schema-org-json-ld-v1",
+      format: "json_ld",
+      batches: withImageFallback(jsonLd, imageFromHtml(fetched.body, fetched.finalUrl))
+    };
   }
 
   const adapter = adapters.find((item) => item.matches(url));
