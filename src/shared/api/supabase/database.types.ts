@@ -139,6 +139,258 @@ export type Database = {
           },
         ]
       }
+      content_candidates: {
+        Row: {
+          action: Database["public"]["Enums"]["content_candidate_action"]
+          content_hash: string
+          created_at: string
+          decision: Database["public"]["Enums"]["content_candidate_decision"] | null
+          depends_on_candidate_id: string | null
+          duplicate_of_id: string | null
+          duplicate_organization_id: string | null
+          duplicate_publication_id: string | null
+          duplicate_reviewed_at: string | null
+          duplicate_reviewed_by: string | null
+          error_message: string | null
+          evidence: Json
+          external_id: string | null
+          id: string
+          last_seen_at: string
+          normalized_fingerprint: string
+          payload: Json
+          raw_expires_at: string
+          result_organization_id: string | null
+          result_publication_id: string | null
+          review_comment: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          run_id: string | null
+          source_checked_at: string
+          source_excerpt: string | null
+          source_id: string | null
+          source_url: string
+          status: Database["public"]["Enums"]["content_candidate_status"]
+          target_organization_id: string | null
+          target_publication_id: string | null
+          updated_at: string
+          warnings: Json
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["content_candidate_action"]
+          content_hash: string
+          created_at?: string
+          decision?: Database["public"]["Enums"]["content_candidate_decision"] | null
+          depends_on_candidate_id?: string | null
+          duplicate_of_id?: string | null
+          duplicate_organization_id?: string | null
+          duplicate_publication_id?: string | null
+          duplicate_reviewed_at?: string | null
+          duplicate_reviewed_by?: string | null
+          error_message?: string | null
+          evidence?: Json
+          external_id?: string | null
+          id?: string
+          last_seen_at?: string
+          normalized_fingerprint: string
+          payload: Json
+          raw_expires_at?: string
+          result_organization_id?: string | null
+          result_publication_id?: string | null
+          review_comment?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          run_id?: string | null
+          source_checked_at?: string
+          source_excerpt?: string | null
+          source_id?: string | null
+          source_url: string
+          status?: Database["public"]["Enums"]["content_candidate_status"]
+          target_organization_id?: string | null
+          target_publication_id?: string | null
+          updated_at?: string
+          warnings?: Json
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["content_candidate_action"]
+          content_hash?: string
+          created_at?: string
+          decision?: Database["public"]["Enums"]["content_candidate_decision"] | null
+          depends_on_candidate_id?: string | null
+          duplicate_of_id?: string | null
+          duplicate_organization_id?: string | null
+          duplicate_publication_id?: string | null
+          duplicate_reviewed_at?: string | null
+          duplicate_reviewed_by?: string | null
+          error_message?: string | null
+          evidence?: Json
+          external_id?: string | null
+          id?: string
+          last_seen_at?: string
+          normalized_fingerprint?: string
+          payload?: Json
+          raw_expires_at?: string
+          result_organization_id?: string | null
+          result_publication_id?: string | null
+          review_comment?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          run_id?: string | null
+          source_checked_at?: string
+          source_excerpt?: string | null
+          source_id?: string | null
+          source_url?: string
+          status?: Database["public"]["Enums"]["content_candidate_status"]
+          target_organization_id?: string | null
+          target_publication_id?: string | null
+          updated_at?: string
+          warnings?: Json
+        }
+        Relationships: [
+          { foreignKeyName: "content_candidates_depends_on_candidate_id_fkey"; columns: ["depends_on_candidate_id"]; isOneToOne: false; referencedRelation: "content_candidates"; referencedColumns: ["id"] },
+          { foreignKeyName: "content_candidates_duplicate_of_id_fkey"; columns: ["duplicate_of_id"]; isOneToOne: false; referencedRelation: "content_candidates"; referencedColumns: ["id"] },
+          { foreignKeyName: "content_candidates_duplicate_organization_id_fkey"; columns: ["duplicate_organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "content_candidates_duplicate_publication_id_fkey"; columns: ["duplicate_publication_id"]; isOneToOne: false; referencedRelation: "publications"; referencedColumns: ["id"] },
+          { foreignKeyName: "content_candidates_result_organization_id_fkey"; columns: ["result_organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "content_candidates_result_publication_id_fkey"; columns: ["result_publication_id"]; isOneToOne: false; referencedRelation: "publications"; referencedColumns: ["id"] },
+          { foreignKeyName: "content_candidates_run_id_fkey"; columns: ["run_id"]; isOneToOne: false; referencedRelation: "content_ingestion_runs"; referencedColumns: ["id"] },
+          { foreignKeyName: "content_candidates_source_id_fkey"; columns: ["source_id"]; isOneToOne: false; referencedRelation: "content_sources"; referencedColumns: ["id"] },
+          { foreignKeyName: "content_candidates_target_organization_id_fkey"; columns: ["target_organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+          { foreignKeyName: "content_candidates_target_publication_id_fkey"; columns: ["target_publication_id"]; isOneToOne: false; referencedRelation: "publications"; referencedColumns: ["id"] },
+        ]
+      }
+      content_ingestion_runs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          created_count: number
+          discovered_count: number
+          duplicate_count: number
+          error_message: string | null
+          failed_count: number
+          finished_at: string | null
+          id: string
+          idempotency_key: string
+          source_id: string | null
+          source_url: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["content_ingestion_run_status"]
+          trigger: Database["public"]["Enums"]["content_ingestion_trigger"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          created_count?: number
+          discovered_count?: number
+          duplicate_count?: number
+          error_message?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          idempotency_key: string
+          source_id?: string | null
+          source_url?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["content_ingestion_run_status"]
+          trigger: Database["public"]["Enums"]["content_ingestion_trigger"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          created_count?: number
+          discovered_count?: number
+          duplicate_count?: number
+          error_message?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          idempotency_key?: string
+          source_id?: string | null
+          source_url?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["content_ingestion_run_status"]
+          trigger?: Database["public"]["Enums"]["content_ingestion_trigger"]
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "content_ingestion_runs_source_id_fkey"; columns: ["source_id"]; isOneToOne: false; referencedRelation: "content_sources"; referencedColumns: ["id"] },
+        ]
+      }
+      content_sources: {
+        Row: {
+          canonical_url: string
+          consecutive_failures: number
+          created_at: string
+          created_by: string | null
+          etag: string | null
+          fetch_interval_minutes: number
+          id: string
+          is_active: boolean
+          kind: Database["public"]["Enums"]["content_source_kind"]
+          last_checked_at: string | null
+          last_error: string | null
+          last_error_at: string | null
+          last_modified: string | null
+          last_success_at: string | null
+          name: string
+          next_check_at: string
+          notes: string | null
+          organization_id: string | null
+          trust_level: Database["public"]["Enums"]["content_source_trust"]
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          canonical_url: string
+          consecutive_failures?: number
+          created_at?: string
+          created_by?: string | null
+          etag?: string | null
+          fetch_interval_minutes?: number
+          id?: string
+          is_active?: boolean
+          kind: Database["public"]["Enums"]["content_source_kind"]
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_error_at?: string | null
+          last_modified?: string | null
+          last_success_at?: string | null
+          name: string
+          next_check_at?: string
+          notes?: string | null
+          organization_id?: string | null
+          trust_level?: Database["public"]["Enums"]["content_source_trust"]
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          canonical_url?: string
+          consecutive_failures?: number
+          created_at?: string
+          created_by?: string | null
+          etag?: string | null
+          fetch_interval_minutes?: number
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["content_source_kind"]
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_error_at?: string | null
+          last_modified?: string | null
+          last_success_at?: string | null
+          name?: string
+          next_check_at?: string
+          notes?: string | null
+          organization_id?: string | null
+          trust_level?: Database["public"]["Enums"]["content_source_trust"]
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          { foreignKeyName: "content_sources_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
+        ]
+      }
       important_announcements: {
         Row: {
           active_from: string | null
@@ -959,6 +1211,10 @@ export type Database = {
         Args: { application_id: string }
         Returns: Json
       }
+      claim_due_content_sources: {
+        Args: { p_limit?: number }
+        Returns: Database["public"]["Tables"]["content_sources"]["Row"][]
+      }
       create_inaccuracy_report: {
         Args: {
           comment: string
@@ -1010,6 +1266,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      link_organization_application_to_existing: {
+        Args: { p_admin_comment?: string | null; p_application_id: string; p_organization_id: string }
+        Returns: Json
+      }
       make_organization_slug: {
         Args: { application_id: string; name: string }
         Returns: string
@@ -1044,6 +1304,15 @@ export type Database = {
       }
       request_organization_application_changes: {
         Args: { admin_comment: string; application_id: string }
+        Returns: Json
+      }
+      review_content_candidate: {
+        Args: {
+          p_candidate_id: string
+          p_decision: Database["public"]["Enums"]["content_candidate_decision"]
+          p_payload?: Json | null
+          p_review_comment?: string | null
+        }
         Returns: Json
       }
       review_organization_type_change: {
@@ -1190,6 +1459,33 @@ export type Database = {
         | "favorite_add"
         | "share"
         | "calendar"
+      content_candidate_action:
+        | "create_organization"
+        | "create_publication"
+        | "update_publication"
+        | "cancel_publication"
+      content_candidate_decision:
+        | "approve_publish"
+        | "approve_draft"
+        | "reject"
+        | "mark_not_duplicate"
+      content_candidate_status:
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "duplicate"
+        | "stale"
+        | "failed"
+      content_ingestion_run_status:
+        | "queued"
+        | "running"
+        | "succeeded"
+        | "partial"
+        | "failed"
+        | "skipped"
+      content_ingestion_trigger: "cron" | "admin" | "agent"
+      content_source_kind: "html" | "rss" | "manual"
+      content_source_trust: "official" | "partner" | "discovery"
       important_announcement_status: "draft" | "active" | "expired" | "hidden"
       inaccuracy_report_reason:
         | "wrong_datetime"
@@ -1373,6 +1669,37 @@ export const Constants = {
         "share",
         "calendar",
       ],
+      content_candidate_action: [
+        "create_organization",
+        "create_publication",
+        "update_publication",
+        "cancel_publication",
+      ],
+      content_candidate_decision: [
+        "approve_publish",
+        "approve_draft",
+        "reject",
+        "mark_not_duplicate",
+      ],
+      content_candidate_status: [
+        "pending",
+        "approved",
+        "rejected",
+        "duplicate",
+        "stale",
+        "failed",
+      ],
+      content_ingestion_run_status: [
+        "queued",
+        "running",
+        "succeeded",
+        "partial",
+        "failed",
+        "skipped",
+      ],
+      content_ingestion_trigger: ["cron", "admin", "agent"],
+      content_source_kind: ["html", "rss", "manual"],
+      content_source_trust: ["official", "partner", "discovery"],
       important_announcement_status: ["draft", "active", "expired", "hidden"],
       inaccuracy_report_reason: [
         "wrong_datetime",

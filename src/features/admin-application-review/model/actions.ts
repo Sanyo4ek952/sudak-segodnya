@@ -174,6 +174,38 @@ export async function getAdminApplication(id: string) {
     : null;
 }
 
+export async function getOwnerlessImportedOrganizations() {
+  await assertAdmin();
+  const supabase = await createSupabaseServerClient();
+  const { data: candidates } = await supabase
+    .from("content_candidates")
+    .select("result_organization_id")
+    .eq("action", "create_organization")
+    .eq("status", "approved")
+    .not("result_organization_id", "is", null);
+  const organizationIds = Array.from(new Set(
+    (candidates ?? []).flatMap((candidate) => candidate.result_organization_id ? [candidate.result_organization_id] : [])
+  ));
+  if (organizationIds.length === 0) return [];
+
+  const [{ data: organizations }, { data: owners }] = await Promise.all([
+    supabase
+      .from("organizations")
+      .select("id, name, slug")
+      .in("id", organizationIds)
+      .eq("status", "active")
+      .order("name"),
+    supabase
+      .from("organization_members")
+      .select("organization_id")
+      .in("organization_id", organizationIds)
+      .eq("role", "owner")
+      .eq("is_active", true)
+  ]);
+  const owned = new Set((owners ?? []).map((owner) => owner.organization_id));
+  return (organizations ?? []).filter((organization) => !owned.has(organization.id));
+}
+
 export async function approveApplicationAction(
   _state: AdminActionState,
   formData: FormData
@@ -274,4 +306,35 @@ export async function rejectApplicationAction(
     status: "success",
     message: "Заявка отклонена, организация не создана."
   };
+}
+
+export async function linkApplicationToExistingOrganizationAction(
+  _state: AdminActionState,
+  formData: FormData
+): Promise<AdminActionState> {
+  const parsed = z.object({
+    applicationId: idSchema,
+    organizationId: idSchema,
+    adminComment: commentSchema
+  }).safeParse({
+    applicationId: getString(formData, "applicationId"),
+    organizationId: getString(formData, "organizationId"),
+    adminComment: getString(formData, "adminComment")
+  });
+  if (!parsed.success) return actionError("Выберите организацию и добавьте комментарий проверки.");
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("link_organization_application_to_existing", {
+    p_admin_comment: parsed.data.adminComment,
+    p_application_id: parsed.data.applicationId,
+    p_organization_id: parsed.data.organizationId
+  });
+  if (error) return actionError(error.message || "Не получилось связать заявку с организацией.");
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/applications");
+  revalidatePath(`/admin/applications/${parsed.data.applicationId}`);
+  revalidatePath("/business");
+  revalidatePath("/organizations");
+  return { status: "success", message: "Заявитель назначен владельцем существующей организации." };
 }

@@ -8,6 +8,7 @@ import { SectionNavigation } from "@/widgets/app-shell/ui/section-navigation";
 const adminNavigationItems = [
   { label: "Обзор", href: "/admin", exact: true },
   { label: "Заявки организаций", href: "/admin/applications" },
+  { label: "Импорт", href: "/admin/imports" },
   { label: "Публикации", href: "/admin/publications" },
   { label: "Организации", href: "/admin/organizations" },
   { label: "Неточности", href: "/admin/reports" },
