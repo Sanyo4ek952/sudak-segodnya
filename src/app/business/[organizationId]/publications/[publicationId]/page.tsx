@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
-import { getBusinessPublication, getPublicationCategories } from "@/features/business-cabinet/model/actions";
+import {
+  getBusinessOrganization,
+  getBusinessPublication,
+  getPublicationCategories
+} from "@/features/business-cabinet/model/actions";
 import { PublicationForm } from "@/features/business-cabinet/ui/publication-form";
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
@@ -14,12 +18,13 @@ type EditPublicationPageProps = {
 
 export default async function EditPublicationPage({ params }: EditPublicationPageProps) {
   const { organizationId, publicationId } = await params;
-  const [publication, categories] = await Promise.all([
+  const [publication, categories, organization] = await Promise.all([
     getBusinessPublication(organizationId, publicationId),
-    getPublicationCategories()
+    getPublicationCategories(),
+    getBusinessOrganization(organizationId)
   ]);
 
-  if (!publication) {
+  if (!publication || !organization) {
     notFound();
   }
 
@@ -34,6 +39,7 @@ export default async function EditPublicationPage({ params }: EditPublicationPag
         <CardContent>
           <PublicationForm
             organizationId={organizationId}
+            organizationAddress={organization.address}
             publication={publication}
             categories={categories}
             draftPublicationId={publication.id}

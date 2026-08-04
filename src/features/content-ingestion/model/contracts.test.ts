@@ -25,7 +25,7 @@ const eventPayload = {
   ageLimit: "12+",
   contactPhone: null,
   scheduleEntries: [],
-  imageSourceUrl: null
+  imageSourceUrl: "https://museum.example.org/images/lecture.jpg"
 };
 
 describe("content ingestion contracts", () => {
@@ -56,6 +56,13 @@ describe("content ingestion contracts", () => {
         "Для мероприятия нужны начало и окончание.",
         "Укажите цену или отметьте бесплатное участие."
       ])
+    );
+  });
+
+  it("warns when the official source has no image", () => {
+    const parsed = contentCandidatePayloadSchema.parse({ ...eventPayload, imageSourceUrl: null });
+    expect(getCandidatePublishWarnings(parsed)).toContain(
+      "Источник не предоставил изображение; будет использована нейтральная заглушка."
     );
   });
 

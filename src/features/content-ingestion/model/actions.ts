@@ -10,6 +10,7 @@ import {
   contentSourceTrustLevels,
   publicationCandidatePayloadSchema,
   organizationCandidatePayloadSchema,
+  type ContentCandidateAction,
   type ContentCandidatePayload
 } from "@/features/content-ingestion/model/contracts";
 import {
@@ -22,10 +23,15 @@ import {
 import { toMoscowIsoOrOriginal } from "@/features/content-ingestion/model/moscow-date";
 import { normalizeSourceUrl } from "@/features/content-ingestion/server/secure-fetch";
 import {
+  IMAGE_IMPORT_WARNING_PREFIX,
+  importCandidateImage
+} from "@/features/content-ingestion/server/imported-image";
+import {
   processContentIngestionRequest,
   runScheduledContentIngestion
 } from "@/features/content-ingestion/server/worker";
 import { createSupabaseServerClient } from "@/shared/api/supabase/server";
+import { createSupabaseAdminClient } from "@/shared/api/supabase/admin";
 import { postgresUuidSchema } from "@/shared/lib/postgres-uuid";
 
 const pageSize = 12;
@@ -37,6 +43,10 @@ const sourceSchema = z.object({
   kind: z.enum(contentSourceKinds),
   trustLevel: z.enum(contentSourceTrustLevels)
 });
+const reviewResultSchema = z.object({
+  organization_id: postgresUuidSchema.nullable().optional(),
+  publication_id: postgresUuidSchema.nullable().optional()
+}).passthrough();
 
 function getString(formData: FormData, name: string) {
   const value = formData.get(name);
@@ -255,7 +265,8 @@ function parseCandidateForm(formData: FormData): ContentCandidatePayload | null 
       address: optionalText(getString(formData, "address")),
       phone: optionalText(getString(formData, "phone")),
       workingHours: optionalText(getString(formData, "workingHours")),
-      contactLinks
+      contactLinks,
+      imageSourceUrl: optionalText(getString(formData, "imageSourceUrl"))
     });
     return parsed.success ? parsed.data : null;
   }
@@ -289,6 +300,74 @@ function parseCandidateForm(formData: FormData): ContentCandidatePayload | null 
   return parsed.success ? parsed.data : null;
 }
 
+async function setCandidateImageWarning(candidateId: string, message: string | null) {
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("content_candidates")
+    .select("warnings")
+    .eq("id", candidateId)
+    .maybeSingle();
+  if (error || !data) return;
+  const existing = Array.isArray(data.warnings)
+    ? data.warnings.filter((item): item is string => typeof item === "string")
+    : [];
+  const warnings = existing.filter((warning) => !warning.startsWith(IMAGE_IMPORT_WARNING_PREFIX));
+  if (message) warnings.push(`${IMAGE_IMPORT_WARNING_PREFIX} ${message}`);
+  await admin.from("content_candidates").update({ warnings }).eq("id", candidateId);
+}
+
+async function importReviewedCandidateImage({
+  candidateId,
+  candidateAction,
+  payload,
+  organizationId,
+  publicationId,
+  uploadedBy
+}: {
+  candidateId: string;
+  candidateAction: ContentCandidateAction;
+  payload: ContentCandidatePayload;
+  organizationId?: string | null;
+  publicationId?: string | null;
+  uploadedBy: string;
+}) {
+  if (candidateAction === "cancel_publication") return { status: "skipped" as const };
+  if (!payload.imageSourceUrl) {
+    const message = "источник не предоставил URL; используется нейтральная заглушка.";
+    await setCandidateImageWarning(candidateId, message);
+    return { status: "warning" as const, message };
+  }
+
+  const owner = payload.kind === "organization"
+    ? organizationId
+      ? { kind: "organization" as const, id: organizationId, altText: `Фото организации «${payload.name}»` }
+      : null
+    : publicationId
+      ? { kind: "publication" as const, id: publicationId, altText: `Изображение к публикации «${payload.title}»` }
+      : null;
+  if (!owner) {
+    const message = "созданный материал не найден; повторите импорт изображения.";
+    await setCandidateImageWarning(candidateId, message);
+    return { status: "warning" as const, message };
+  }
+
+  try {
+    const result = await importCandidateImage({
+      sourceUrl: payload.imageSourceUrl,
+      owner,
+      uploadedBy
+    });
+    await setCandidateImageWarning(candidateId, null);
+    return result;
+  } catch (error) {
+    const message = error instanceof Error
+      ? error.message.slice(0, 500)
+      : "не удалось импортировать изображение; повторите попытку.";
+    await setCandidateImageWarning(candidateId, message);
+    return { status: "warning" as const, message };
+  }
+}
+
 export async function reviewContentCandidateAction(
   _state: ContentIngestionActionState,
   formData: FormData
@@ -301,14 +380,20 @@ export async function reviewContentCandidateAction(
     return actionError("Укажите причину отклонения.");
   }
 
-  const { supabase } = await getAdminContext();
+  const { supabase, user } = await getAdminContext();
+  const { data: candidateRecord, error: candidateError } = await supabase
+    .from("content_candidates")
+    .select("action")
+    .eq("id", candidateId.data)
+    .maybeSingle();
+  if (candidateError || !candidateRecord) return actionError("Кандидат не найден.");
   let payload: ContentCandidatePayload | null = null;
   if (decision.data !== "mark_not_duplicate" && decision.data !== "reject") {
     payload = parseCandidateForm(formData);
     if (!payload) return actionError("Проверьте заполненные поля и расписание.");
   }
 
-  const { error } = await supabase.rpc("review_content_candidate", {
+  const { data: reviewResult, error } = await supabase.rpc("review_content_candidate", {
     p_candidate_id: candidateId.data,
     p_decision: decision.data,
     p_payload: payload,
@@ -316,18 +401,75 @@ export async function reviewContentCandidateAction(
   });
   if (error) return actionError(error.message || "Не получилось сохранить решение.");
 
+  let imageResult: Awaited<ReturnType<typeof importReviewedCandidateImage>> | null = null;
+  if (payload && decision.data !== "reject" && decision.data !== "mark_not_duplicate") {
+    const parsedResult = reviewResultSchema.safeParse(reviewResult);
+    imageResult = await importReviewedCandidateImage({
+      candidateId: candidateId.data,
+      candidateAction: candidateRecord.action,
+      payload,
+      organizationId: parsedResult.success ? parsedResult.data.organization_id : null,
+      publicationId: parsedResult.success ? parsedResult.data.publication_id : null,
+      uploadedBy: user.id
+    });
+  }
+
   revalidatePath("/");
   revalidatePath("/admin");
   revalidatePath("/admin/imports");
   revalidatePath(`/admin/imports/${candidateId.data}`);
   revalidatePath("/organizations");
-  return actionSuccess(decision.data === "mark_not_duplicate"
+  const message = decision.data === "mark_not_duplicate"
     ? "Отметка о дубле снята."
     : decision.data === "reject"
       ? "Кандидат отклонён."
       : decision.data === "approve_draft"
         ? "Кандидат сохранён как черновик."
-        : "Кандидат одобрен.");
+        : "Кандидат одобрен.";
+  return actionSuccess(imageResult?.status === "warning"
+    ? `${message} Изображение не импортировано: ${imageResult.message}`
+    : message);
+}
+
+export async function retryCandidateImageAction(
+  _state: ContentIngestionActionState,
+  formData: FormData
+): Promise<ContentIngestionActionState> {
+  const candidateId = postgresUuidSchema.safeParse(getString(formData, "candidateId"));
+  if (!candidateId.success) return actionError("Кандидат не найден.");
+  const { user } = await getAdminContext();
+  const admin = createSupabaseAdminClient();
+  const { data: candidate, error } = await admin
+    .from("content_candidates")
+    .select("action, status, payload, result_organization_id, result_publication_id")
+    .eq("id", candidateId.data)
+    .maybeSingle();
+  if (error || !candidate || candidate.status !== "approved") {
+    return actionError("Повторный импорт доступен только для одобренного кандидата.");
+  }
+  if (candidate.action === "cancel_publication") {
+    return actionError("Для отмены публикации изображение не импортируется.");
+  }
+  const payload = parseStoredPayload(candidate.payload);
+  if (!payload) return actionError("Данные кандидата повреждены.");
+
+  const result = await importReviewedCandidateImage({
+    candidateId: candidateId.data,
+    candidateAction: candidate.action,
+    payload,
+    organizationId: candidate.result_organization_id,
+    publicationId: candidate.result_publication_id,
+    uploadedBy: user.id
+  });
+  revalidatePath("/");
+  revalidatePath("/admin/imports");
+  revalidatePath(`/admin/imports/${candidateId.data}`);
+  revalidatePath("/organizations");
+  return result.status === "warning"
+    ? actionError(`Изображение не импортировано: ${result.message}`)
+    : actionSuccess(result.status === "unchanged"
+      ? "Изображение уже актуально, повторная загрузка не потребовалась."
+      : "Изображение импортировано и связано с материалом.");
 }
 
 export async function createContentSourceAction(

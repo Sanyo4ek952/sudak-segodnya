@@ -17,7 +17,8 @@ import {
 } from "@/features/content-ingestion/model/fingerprint";
 import {
   hasExplicitCancellationEvidence,
-  isCandidateStale
+  isCandidateStale,
+  selectOrganizationEvidence
 } from "@/features/content-ingestion/model/candidate-rules";
 import { extractSourceCandidates } from "@/features/content-ingestion/server/official-source-adapters";
 import {
@@ -291,13 +292,14 @@ async function createMissingOrganizationCandidate({
     address: publication.place,
     phone: publication.contactPhone,
     workingHours: null,
-    contactLinks: []
+    contactLinks: [],
+    imageSourceUrl: null
   });
   const candidate: ExtractedCandidate = {
     action: "create_organization",
     externalId: null,
     payload,
-    evidence: evidence.filter((item) => ["organizationName", "place", "contactPhone"].includes(item.field)),
+    evidence: selectOrganizationEvidence(evidence),
     warnings: [
       "Организация не найдена в базе. Проверьте её отдельно перед публикацией связанных материалов.",
       ...getCandidatePublishWarnings(payload)

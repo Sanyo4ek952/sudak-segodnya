@@ -222,7 +222,8 @@ function createOrganizationBatch({
       address,
       phone,
       workingHours,
-      contactLinks: contactUrl ? [{ label: "Сайт", href: contactUrl }] : []
+      contactLinks: contactUrl ? [{ label: "Сайт", href: contactUrl }] : [],
+      imageSourceUrl: imageUrl(node, nodeUrl)
     },
     evidence,
     warnings: ["Организация извлечена из JSON-LD и остаётся в закрытой очереди до проверки администратором."]
@@ -402,6 +403,7 @@ function offerBatch(node: Record<string, unknown>, baseUrl: string, profile: Sou
     validUntil: offer.validUntil,
     priceText: offer.priceText,
     isFree: offer.isFree,
+    imageSourceUrl: imageUrl(node, sourceUrl),
     organizationName: organizationNameValue(node.seller, profile.organizationName),
     warnings: ["Предложение извлечено из JSON-LD и требует ручной проверки условий."]
   });
@@ -422,6 +424,7 @@ function unknownJsonLdBatch(node: Record<string, unknown>, baseUrl: string, prof
     externalId: stringValue(node["@id"]) ?? sourceUrl,
     title,
     description,
+    imageSourceUrl: imageUrl(node, sourceUrl),
     organizationName: organizationNameValue(node.publisher, profile.organizationName),
     warnings: [
       `Неизвестный тип JSON-LD (${types.join(", ") || "не указан"}); материал оставлен в закрытой очереди.`,
@@ -496,11 +499,30 @@ function rssEntryUrl(entry: string, feedUrl: string, atom: boolean) {
 }
 
 function rssImageUrl(entry: string, itemUrl: string) {
-  const media = entry.match(/<(?:media:content|enclosure)\b([^>]*)\/?\s*>/i);
-  if (!media?.[1]) return null;
-  const type = attributeValue(media[1], "type");
-  if (type && !type.toLocaleLowerCase("en-US").startsWith("image/")) return null;
-  return resolveHttpsUrl(attributeValue(media[1], "url"), itemUrl);
+  for (const media of Array.from(entry.matchAll(
+    /<(?:media:content|media:thumbnail|enclosure|itunes:image)\b([^>]*)\/?\s*>/gi
+  ))) {
+    const attributes = media[1] ?? "";
+    const type = attributeValue(attributes, "type");
+    if (type && !type.toLocaleLowerCase("en-US").startsWith("image/")) continue;
+    const resolved = resolveHttpsUrl(
+      attributeValue(attributes, "url") ?? attributeValue(attributes, "href"),
+      itemUrl
+    );
+    if (resolved) return resolved;
+  }
+
+  const nestedImage = tagValue(entry, ["image"]);
+  const nestedUrl = nestedImage ? tagValue(nestedImage, ["url"]) : null;
+  const resolvedNested = resolveHttpsUrl(cleanMarkup(nestedUrl ?? "", 1000), itemUrl);
+  if (resolvedNested) return resolvedNested;
+
+  const markup = tagValue(entry, ["content:encoded", "description", "summary", "content"]) ?? "";
+  const imageTag = markup.match(/<img\b([^>]*)>/i)?.[1] ?? "";
+  return resolveHttpsUrl(
+    attributeValue(imageTag, "src") ?? attributeValue(imageTag, "data-src"),
+    itemUrl
+  );
 }
 
 export function parseRssCandidateBatches(xml: string, feedUrl: string, profile: SourceProfile) {

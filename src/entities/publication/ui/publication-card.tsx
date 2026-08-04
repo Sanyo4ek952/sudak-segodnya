@@ -17,6 +17,10 @@ function getStatusLabel(publication: Publication) {
     return "Регулярно";
   }
 
+  if (publication.type === "news" && publication.publishedAt) {
+    return formatDate(publication.publishedAt);
+  }
+
   if (publication.startsAt) {
     return formatDateTime(publication.startsAt);
   }
@@ -34,7 +38,7 @@ export function PublicationCard({ publication }: { publication: Publication }) {
   const typeLabel = publicationTypeLabels[publication.type];
   const showTypeBadge = statusLabel.toLocaleLowerCase("ru-RU") !== typeLabel.toLocaleLowerCase("ru-RU");
   const showPlace = (publication.type === "event" || publication.type === "regular") && publication.place;
-  const showPrice = publication.type !== "news" && publication.priceText;
+  const showPrice = ["event", "promo", "regular"].includes(publication.type) && publication.priceText;
 
   return (
     <Card className={publication.status === "cancelled" ? "overflow-hidden border-error" : "overflow-hidden"}>

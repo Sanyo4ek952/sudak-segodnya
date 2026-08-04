@@ -92,11 +92,13 @@ export function CandidateReviewForm({
           <FormField id="candidate-working-hours" label="График работы">
             <Textarea id="candidate-working-hours" name="workingHours" defaultValue={payload.workingHours ?? ""} maxLength={1000} disabled={!editable} />
           </FormField>
+          <FormField id="candidate-image-source" label="URL изображения источника" hint="Изображение будет безопасно скопировано в приватное хранилище после одобрения.">
+            <Input id="candidate-image-source" name="imageSourceUrl" type="url" defaultValue={payload.imageSourceUrl ?? ""} maxLength={1000} disabled={!editable} />
+          </FormField>
           <input type="hidden" name="contactLinks" value={JSON.stringify(payload.contactLinks)} />
         </>
       ) : (
         <>
-          <input type="hidden" name="imageSourceUrl" value={payload.imageSourceUrl ?? ""} />
           <FormField id="candidate-organization" label="Организация" hint="Без активной организации публикация останется черновиком.">
             <Select id="candidate-organization" name="organizationId" defaultValue={payload.organizationId ?? ""} disabled={!editable}>
               <option value="">Не сопоставлена — {payload.organizationName}</option>
@@ -149,6 +151,9 @@ export function CandidateReviewForm({
           </FormField>
           <FormField id="candidate-publication-description" label="Описание">
             <Textarea id="candidate-publication-description" name="description" defaultValue={payload.description ?? ""} maxLength={4000} disabled={!editable} />
+          </FormField>
+          <FormField id="candidate-image-source" label="URL изображения источника" hint="Изображение будет безопасно скопировано в приватное хранилище после одобрения.">
+            <Input id="candidate-image-source" name="imageSourceUrl" type="url" defaultValue={payload.imageSourceUrl ?? ""} maxLength={1000} disabled={!editable} />
           </FormField>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField id="candidate-starts-at" label="Начало">

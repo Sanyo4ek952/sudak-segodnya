@@ -591,6 +591,7 @@ export type Database = {
           alt_text: string | null
           application_id: string | null
           bucket_id: string
+          content_hash: string | null
           created_at: string
           deleted_at: string | null
           height: number | null
@@ -612,6 +613,7 @@ export type Database = {
           alt_text?: string | null
           application_id?: string | null
           bucket_id: string
+          content_hash?: string | null
           created_at?: string
           deleted_at?: string | null
           height?: number | null
@@ -633,6 +635,7 @@ export type Database = {
           alt_text?: string | null
           application_id?: string | null
           bucket_id?: string
+          content_hash?: string | null
           created_at?: string
           deleted_at?: string | null
           height?: number | null

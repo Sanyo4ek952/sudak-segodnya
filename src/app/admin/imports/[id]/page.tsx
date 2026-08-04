@@ -11,6 +11,7 @@ import {
 } from "@/features/content-ingestion/model/types";
 import { CandidatePreview } from "@/features/content-ingestion/ui/candidate-preview";
 import { CandidateReviewForm } from "@/features/content-ingestion/ui/candidate-review-form";
+import { CandidateImageRetryForm } from "@/features/content-ingestion/ui/candidate-image-retry-form";
 import { formatDateTime } from "@/shared/lib/date";
 import { Badge } from "@/shared/ui/badge";
 import { LinkButton } from "@/shared/ui/button";
@@ -135,6 +136,9 @@ export default async function AdminImportCandidatePage({ params }: AdminImportCa
               </ul>
             ) : null}
             {detail.error_message ? <p className="text-sm leading-6 text-error">{detail.error_message}</p> : null}
+            {detail.status === "approved" && detail.action !== "cancel_publication" ? (
+              <CandidateImageRetryForm candidateId={detail.id} />
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -160,7 +164,7 @@ export default async function AdminImportCandidatePage({ params }: AdminImportCa
         </Card>
 
         <section className="min-w-0 space-y-4">
-          <SectionHeader title="Предпросмотр" description="Изображение не копируется; используется штатная заглушка." />
+          <SectionHeader title="Предпросмотр" description="До одобрения используется штатная заглушка; опубликованные карточки получают только копию из приватного Storage." />
           <CandidatePreview candidateId={detail.id} payload={detail.parsedPayload} />
         </section>
       </div>
