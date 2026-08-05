@@ -112,10 +112,12 @@ function resolveHttpsUrl(value: string | null | undefined, baseUrl: string) {
   }
 }
 
-export function toMoscowOffsetIso(value: unknown) {
+export function toMoscowOffsetIso(value: unknown, endOfDay = false) {
   if (typeof value !== "string" || !value.trim()) return null;
   const normalized = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return `${normalized}T00:00:00+03:00`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return `${normalized}T${endOfDay ? "23:59:59" : "00:00:00"}+03:00`;
+  }
   const withZone = /(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(normalized) ? normalized : `${normalized}+03:00`;
   const parsed = new Date(withZone);
   if (Number.isNaN(parsed.getTime())) return null;
@@ -123,6 +125,153 @@ export function toMoscowOffsetIso(value: unknown) {
   const pad = (part: number) => String(part).padStart(2, "0");
   return `${moscow.getUTCFullYear()}-${pad(moscow.getUTCMonth() + 1)}-${pad(moscow.getUTCDate())}`
     + `T${pad(moscow.getUTCHours())}:${pad(moscow.getUTCMinutes())}:${pad(moscow.getUTCSeconds())}+03:00`;
+}
+
+const russianMonthNumbers: Record<string, number> = {
+  января: 1,
+  февраля: 2,
+  марта: 3,
+  апреля: 4,
+  мая: 5,
+  июня: 6,
+  июля: 7,
+  августа: 8,
+  сентября: 9,
+  октября: 10,
+  ноября: 11,
+  декабря: 12
+};
+
+const russianMonthPattern = Object.keys(russianMonthNumbers).join("|");
+
+export type RussianEventInterval = {
+  startsAt: string;
+  endsAt: string;
+  excerpt: string;
+  exactTime: boolean;
+};
+
+function validCalendarDate(year: number, month: number, day: number) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
+function localDateTime(year: number, month: number, day: number, time: string) {
+  if (!validCalendarDate(year, month, day)) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${time}+03:00`;
+}
+
+function intervalResult({
+  startYear,
+  startMonth,
+  startDay,
+  endYear,
+  endMonth,
+  endDay,
+  excerpt,
+  startTime = "00:00:00"
+}: {
+  startYear: number;
+  startMonth: number;
+  startDay: number;
+  endYear: number;
+  endMonth: number;
+  endDay: number;
+  excerpt: string;
+  startTime?: string;
+}): RussianEventInterval | null {
+  const startsAt = localDateTime(startYear, startMonth, startDay, startTime);
+  const endsAt = localDateTime(endYear, endMonth, endDay, "23:59:59");
+  if (!startsAt || !endsAt || Date.parse(endsAt) < Date.parse(startsAt)) return null;
+  return {
+    startsAt,
+    endsAt,
+    excerpt: excerpt.replace(/\s+/g, " ").trim().slice(0, 300),
+    exactTime: false
+  };
+}
+
+export function extractRussianEventInterval(value: string, fallbackYear?: number | null) {
+  const normalized = value.normalize("NFKC").replace(/\u00a0/g, " ");
+  const crossMonth = new RegExp(
+    `\\b(?:с\\s+)?(\\d{1,2})\\s+(${russianMonthPattern})(?:\\s+(20\\d{2})(?:\\s*(?:года?|г\\.))?)?\\s+(?:по|до|[-–—])\\s+(\\d{1,2})\\s+(${russianMonthPattern})(?:\\s+(20\\d{2})(?:\\s*(?:года?|г\\.))?)?`,
+    "i"
+  ).exec(normalized);
+  if (crossMonth?.[1] && crossMonth[2] && crossMonth[4] && crossMonth[5]) {
+    const startMonth = russianMonthNumbers[crossMonth[2].toLocaleLowerCase("ru-RU")];
+    const endMonth = russianMonthNumbers[crossMonth[5].toLocaleLowerCase("ru-RU")];
+    const explicitStartYear = Number(crossMonth[3] ?? 0) || null;
+    const explicitEndYear = Number(crossMonth[6] ?? 0) || null;
+    const baseYear = explicitEndYear ?? explicitStartYear ?? fallbackYear ?? null;
+    if (startMonth && endMonth && baseYear) {
+      const startYear = explicitStartYear ?? (startMonth > endMonth ? baseYear - 1 : baseYear);
+      const endYear = explicitEndYear ?? (endMonth < startMonth ? startYear + 1 : startYear);
+      const interval = intervalResult({
+        startYear,
+        startMonth,
+        startDay: Number(crossMonth[1]),
+        endYear,
+        endMonth,
+        endDay: Number(crossMonth[4]),
+        excerpt: crossMonth[0]
+      });
+      if (interval) return interval;
+    }
+  }
+
+  const sameMonth = new RegExp(
+    `\\b(?:с\\s+)?(\\d{1,2})\\s*(?:по|до|[-–—])\\s*(\\d{1,2})\\s+(${russianMonthPattern})(?:\\s+(20\\d{2})(?:\\s*(?:года?|г\\.))?)?`,
+    "i"
+  ).exec(normalized);
+  if (sameMonth?.[1] && sameMonth[2] && sameMonth[3]) {
+    const month = russianMonthNumbers[sameMonth[3].toLocaleLowerCase("ru-RU")];
+    const year = Number(sameMonth[4] ?? 0) || fallbackYear || null;
+    if (month && year) {
+      const interval = intervalResult({
+        startYear: year,
+        startMonth: month,
+        startDay: Number(sameMonth[1]),
+        endYear: year,
+        endMonth: month,
+        endDay: Number(sameMonth[2]),
+        excerpt: sameMonth[0]
+      });
+      if (interval) return interval;
+    }
+  }
+
+  const singleDate = new RegExp(
+    `\\b(\\d{1,2})\\s+(${russianMonthPattern})(?:\\s+(20\\d{2})(?:\\s*(?:года?|г\\.))?)?(?:\\s+в\\s+(\\d{1,2})(?::(\\d{2}))?)?`,
+    "gi"
+  );
+  const eventCue = /(?:пройд[её]т|состоится|начн[её]тся|будет\s+проходить)/i;
+  for (const match of Array.from(normalized.matchAll(singleDate))) {
+    if (!match[1] || !match[2]) continue;
+    const start = match.index ?? 0;
+    const context = normalized.slice(Math.max(0, start - 90), Math.min(normalized.length, start + match[0].length + 90));
+    if (!eventCue.test(context)) continue;
+    const month = russianMonthNumbers[match[2].toLocaleLowerCase("ru-RU")];
+    const year = Number(match[3] ?? 0) || fallbackYear || null;
+    const hour = Number(match[4] ?? 0);
+    const minute = Number(match[5] ?? 0);
+    if (!month || !year || hour > 23 || minute > 59) continue;
+    const interval = intervalResult({
+      startYear: year,
+      startMonth: month,
+      startDay: Number(match[1]),
+      endYear: year,
+      endMonth: month,
+      endDay: Number(match[1]),
+      excerpt: match[0],
+      startTime: match[4]
+        ? `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`
+        : "00:00:00"
+    });
+    if (interval) return interval;
+  }
+  return null;
 }
 
 function safeSourceUrl(value: string, fallback: string) {
@@ -244,6 +393,13 @@ function stringValue(value: unknown): string | null {
   return null;
 }
 
+function richestText(...values: unknown[]) {
+  return values
+    .map(stringValue)
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => right.length - left.length)[0] ?? null;
+}
+
 function addressValue(value: unknown) {
   if (typeof value === "string") return cleanMarkup(value, 500);
   if (!value || typeof value !== "object") return null;
@@ -279,13 +435,35 @@ function itemUrl(node: Record<string, unknown>, baseUrl: string) {
   return safeSourceUrl(id ?? baseUrl, baseUrl);
 }
 
-function imageUrl(node: Record<string, unknown>, baseUrl: string) {
-  const image = node.image;
+function imageValueUrl(image: unknown, baseUrl: string): string | null {
   if (typeof image === "string") return resolveHttpsUrl(image, baseUrl);
-  if (Array.isArray(image)) return imageUrl({ image: image[0] }, baseUrl);
+  if (Array.isArray(image)) {
+    for (const item of image) {
+      const resolved = imageValueUrl(item, baseUrl);
+      if (resolved) return resolved;
+    }
+    return null;
+  }
   if (image && typeof image === "object") {
     const record = image as Record<string, unknown>;
-    return resolveHttpsUrl(stringValue(record.url) ?? stringValue(record.contentUrl), baseUrl);
+    for (const value of [record.contentUrl, record.url, record.thumbnailUrl, record["@id"]]) {
+      const resolved = imageValueUrl(value, baseUrl);
+      if (resolved) return resolved;
+    }
+  }
+  return null;
+}
+
+function imageUrl(node: Record<string, unknown>, baseUrl: string) {
+  for (const value of [
+    node.image,
+    node.primaryImageOfPage,
+    node.thumbnailUrl,
+    node.thumbnail,
+    node.associatedMedia
+  ]) {
+    const resolved = imageValueUrl(value, baseUrl);
+    if (resolved) return resolved;
   }
   return null;
 }
@@ -321,7 +499,7 @@ function offerFacts(value: unknown) {
   return {
     priceText: price ? `${price}${currency === "RUB" ? " ₽" : currency ? ` ${currency}` : ""}` : null,
     isFree: Number.isFinite(numericPrice) && numericPrice === 0,
-    validUntil: toMoscowOffsetIso(record.validThrough ?? record.priceValidUntil)
+    validUntil: toMoscowOffsetIso(record.validThrough ?? record.priceValidUntil, true)
   };
 }
 
@@ -329,9 +507,15 @@ function eventBatch(node: Record<string, unknown>, baseUrl: string, profile: Sou
   const sourceUrl = itemUrl(node, baseUrl);
   const title = stringValue(node.name) ?? stringValue(node.headline);
   if (!title) return null;
-  const description = stringValue(node.description) ?? stringValue(node.text);
-  const startsAt = toMoscowOffsetIso(node.startDate);
-  const endsAt = toMoscowOffsetIso(node.endDate);
+  const description = richestText(node.description, node.text);
+  const rawStart = stringValue(node.startDate);
+  const rawEnd = stringValue(node.endDate);
+  const startsAt = toMoscowOffsetIso(rawStart);
+  const endsAt = rawEnd
+    ? toMoscowOffsetIso(rawEnd, true)
+    : rawStart && /^\d{4}-\d{2}-\d{2}$/.test(rawStart)
+      ? toMoscowOffsetIso(rawStart, true)
+      : null;
   const place = locationValue(node.location);
   const organizationName = organizationNameValue(node.organizer ?? node.location, profile.organizationName);
   const offer = offerFacts(node.offers);
@@ -356,7 +540,8 @@ function eventBatch(node: Record<string, unknown>, baseUrl: string, profile: Sou
     warnings: [
       "Событие извлечено из JSON-LD и остаётся в закрытой очереди до проверки.",
       startsAt ? null : "JSON-LD не содержит однозначного времени начала.",
-      endsAt ? null : "JSON-LD не содержит однозначного времени окончания."
+      endsAt ? null : "JSON-LD не содержит однозначного времени окончания.",
+      !rawEnd && endsAt ? "В источнике указана только дата события; окончанием выбран конец этого дня." : null
     ].filter((value): value is string => Boolean(value))
   });
 }
@@ -365,7 +550,7 @@ function articleBatch(node: Record<string, unknown>, baseUrl: string, profile: S
   const sourceUrl = itemUrl(node, baseUrl);
   const title = stringValue(node.headline) ?? stringValue(node.name);
   if (!title) return null;
-  const description = stringValue(node.description) ?? stringValue(node.articleBody);
+  const description = richestText(node.articleBody, node.description, node.text);
   const published = stringValue(node.datePublished);
   const sourceText = [title, description, published].filter(Boolean).join("\n");
   return createClosedPublicationBatch({
@@ -413,7 +598,7 @@ function unknownJsonLdBatch(node: Record<string, unknown>, baseUrl: string, prof
   const types = jsonLdTypes(node);
   if (types.some((type) => ignoredJsonLdTypes.has(type))) return null;
   const title = stringValue(node.headline) ?? stringValue(node.name);
-  const description = stringValue(node.description) ?? stringValue(node.text);
+  const description = richestText(node.articleBody, node.description, node.text);
   if (!title || !description) return null;
   const sourceUrl = itemUrl(node, baseUrl);
   const sourceText = [title, description].join("\n");
@@ -517,7 +702,9 @@ function rssImageUrl(entry: string, itemUrl: string) {
   const resolvedNested = resolveHttpsUrl(cleanMarkup(nestedUrl ?? "", 1000), itemUrl);
   if (resolvedNested) return resolvedNested;
 
-  const markup = tagValue(entry, ["content:encoded", "description", "summary", "content"]) ?? "";
+  const markup = decodeMarkupEntities(
+    tagValue(entry, ["content:encoded", "description", "summary", "content"]) ?? ""
+  );
   const imageTag = markup.match(/<img\b([^>]*)>/i)?.[1] ?? "";
   return resolveHttpsUrl(
     attributeValue(imageTag, "src") ?? attributeValue(imageTag, "data-src"),

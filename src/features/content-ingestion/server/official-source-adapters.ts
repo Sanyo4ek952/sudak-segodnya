@@ -2,9 +2,11 @@ import type { ContentSourceKind } from "@/features/content-ingestion/model/contr
 import {
   cleanMarkup,
   createClosedPublicationBatch,
+  extractRussianEventInterval,
   looksLikeRss,
   parseJsonLdCandidateBatches,
   parseRssCandidateBatches,
+  toMoscowOffsetIso,
   type SourceCandidateBatch,
   type SourceProfile
 } from "@/features/content-ingestion/server/source-parsers";
@@ -110,22 +112,41 @@ function pageTitle(html: string) {
   return cleanMarkup(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "", 180);
 }
 
-function firstSrcsetUrl(value: string | null) {
-  return value?.split(",")[0]?.trim().split(/\s+/)[0] ?? null;
+function bestSrcsetUrl(value: string | null) {
+  return value?.split(",").at(-1)?.trim().split(/\s+/)[0] ?? null;
 }
 
 function imageFromHtml(html: string, baseUrl: string) {
-  const openGraph = resolveHttpsUrl(metaContent(html, "og:image"), baseUrl);
+  const openGraph = resolveHttpsUrl(
+    metaContent(html, "og:image:secure_url") ?? metaContent(html, "og:image"),
+    baseUrl
+  );
   if (openGraph) return openGraph;
+
+  const twitter = resolveHttpsUrl(
+    metaContent(html, "twitter:image") ?? metaContent(html, "twitter:image:src"),
+    baseUrl
+  );
+  if (twitter) return twitter;
+
+  for (const link of Array.from(html.matchAll(/<link\b([^>]*)>/gi))) {
+    const attributes = link[1] ?? "";
+    if (htmlAttribute(attributes, "rel")?.toLocaleLowerCase("en-US") !== "image_src") continue;
+    const resolved = resolveHttpsUrl(htmlAttribute(attributes, "href"), baseUrl);
+    if (resolved) return resolved;
+  }
 
   for (const match of Array.from(html.matchAll(/<(?:img|source)\b([^>]*)>/gi))) {
     const attributes = match[1] ?? "";
     const candidate = htmlAttribute(attributes, "src")
       ?? htmlAttribute(attributes, "data-src")
       ?? htmlAttribute(attributes, "data-lazy-src")
-      ?? firstSrcsetUrl(htmlAttribute(attributes, "srcset"));
+      ?? bestSrcsetUrl(htmlAttribute(attributes, "srcset"));
     const resolved = resolveHttpsUrl(candidate, baseUrl);
-    if (resolved) return resolved;
+    if (!resolved) continue;
+    const pathname = new URL(resolved).pathname.toLocaleLowerCase("en-US");
+    if (/(?:favicon|sprite|spacer|pixel|tracking|\/icons?\/|\/logos?\/)/.test(pathname)) continue;
+    return resolved;
   }
 
   const cssUrl = html.match(/background-image\s*:\s*url\(\s*["']?([^"')]+)["']?\s*\)/i)?.[1];
@@ -145,13 +166,59 @@ function withImageFallback(batches: SourceCandidateBatch[], imageSourceUrl: stri
   }));
 }
 
-function textByClass(html: string, classFragment: string, maximum: number) {
+function elementInnerHtml(html: string, opening: RegExp) {
+  const match = opening.exec(html);
+  const tag = match?.[1];
+  if (!match || !tag || match.index === undefined) return null;
+  const contentStart = match.index + match[0].length;
+  const tokens = new RegExp(`<\\/?${tag}\\b[^>]*>`, "gi");
+  tokens.lastIndex = contentStart;
+  let depth = 1;
+  for (let token = tokens.exec(html); token; token = tokens.exec(html)) {
+    if (/^<\//.test(token[0])) depth -= 1;
+    else if (!/\/\s*>$/.test(token[0])) depth += 1;
+    if (depth === 0) return html.slice(contentStart, token.index);
+  }
+  return null;
+}
+
+function htmlByClass(html: string, classFragment: string) {
   const escaped = classFragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = html.match(new RegExp(
-    `<[^>]+class=["'][^"']*${escaped}[^"']*["'][^>]*>([\\s\\S]*?)<\\/[^>]+>`,
+  return elementInnerHtml(html, new RegExp(
+    `<([a-z][\\w:-]*)\\b[^>]*class=["'][^"']*${escaped}[^"']*["'][^>]*>`,
     "i"
   ));
-  return cleanMarkup(match?.[1] ?? "", maximum);
+}
+
+function textByClass(html: string, classFragment: string, maximum: number) {
+  return cleanMarkup(htmlByClass(html, classFragment) ?? "", maximum);
+}
+
+function articleTextFromHtml(html: string, maximum = 4000) {
+  const candidates = [
+    "RAW_HTML_CONTAINER",
+    "article-body",
+    "article__body",
+    "article-content",
+    "article__content",
+    "post-content",
+    "entry-content",
+    "news-detail",
+    "news__text"
+  ].map((className) => textByClass(html, className, maximum)).filter((value): value is string => Boolean(value));
+  const semanticArticle = (() => {
+    const index = html.search(/<article\b/i);
+    if (index < 0) return null;
+    return cleanMarkup(elementInnerHtml(html.slice(index), /<([a-z][\w:-]*)\b[^>]*>/i) ?? "", maximum);
+  })();
+  if (semanticArticle) candidates.push(semanticArticle);
+  const paragraphs = Array.from(html.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi))
+    .map((match) => cleanMarkup(match[1] ?? "", 1000))
+    .filter((value): value is string => Boolean(value && value.length >= 30));
+  if (paragraphs.length > 0) {
+    candidates.push(cleanMarkup(Array.from(new Set(paragraphs)).join("\n\n"), maximum) ?? "");
+  }
+  return candidates.sort((left, right) => right.length - left.length)[0] ?? null;
 }
 
 function uniqueDetailLinks(html: string, baseUrl: string, pattern: RegExp, maximum = 12) {
@@ -181,6 +248,33 @@ async function fetchDetailBatches(
       if (result.status !== "fulfilled" || result.value.notModified) continue;
       batches.push(...adapter(result.value, profile));
     }
+  }
+  return batches.slice(0, 20);
+}
+
+async function enrichDetailBatches(
+  initial: SourceCandidateBatch[],
+  profile: SourceProfile,
+  fetchDetail: typeof fetchPublicSource,
+  adapter: (fetched: SafeFetchResult, profile: SourceProfile) => SourceCandidateBatch[]
+) {
+  const batches: SourceCandidateBatch[] = [];
+  for (let offset = 0; offset < initial.length && batches.length < 20; offset += 3) {
+    const portion = initial.slice(offset, offset + 3);
+    const settled = await Promise.allSettled(portion.map((batch) => fetchDetail(batch.sourceUrl, {
+      timeoutMs: 15_000,
+      maxBytes: 2 * 1024 * 1024
+    })));
+    settled.forEach((result, index) => {
+      const fallback = portion[index];
+      if (!fallback) return;
+      if (result.status !== "fulfilled" || result.value.notModified) {
+        batches.push(fallback);
+        return;
+      }
+      const detailed = adapter(result.value, profile);
+      batches.push(...(detailed.length > 0 ? detailed : [fallback]));
+    });
   }
   return batches.slice(0, 20);
 }
@@ -235,12 +329,91 @@ function tavridaCardBatches(fetched: SafeFetchResult, profile: SourceProfile) {
   return batches;
 }
 
+function yearFromText(value: string | null) {
+  const year = value?.match(/\b(20\d{2})\b/)?.[1];
+  return year ? Number(year) : null;
+}
+
+function itemPropValue(html: string, itemProp: string) {
+  for (const match of Array.from(html.matchAll(/<(?:meta|time)\b([^>]*)>/gi))) {
+    const attributes = match[1] ?? "";
+    const props = htmlAttribute(attributes, "itemprop")?.toLocaleLowerCase("en-US").split(/\s+/) ?? [];
+    if (!props.includes(itemProp.toLocaleLowerCase("en-US"))) continue;
+    return htmlAttribute(attributes, "content") ?? htmlAttribute(attributes, "datetime");
+  }
+  return null;
+}
+
+function semanticEventIntervalFromHtml(html: string) {
+  const rawStart = metaContent(html, "event:start_time") ?? itemPropValue(html, "startDate");
+  const rawEnd = metaContent(html, "event:end_time") ?? itemPropValue(html, "endDate");
+  const startsAt = toMoscowOffsetIso(rawStart);
+  const endsAt = rawEnd
+    ? toMoscowOffsetIso(rawEnd, true)
+    : rawStart && /^\d{4}-\d{2}-\d{2}$/.test(rawStart)
+      ? toMoscowOffsetIso(rawStart, true)
+      : null;
+  return startsAt && endsAt ? { startsAt, endsAt } : null;
+}
+
+function hasFutureEventLanguage(value: string) {
+  return /(?:пройд[её]т|состоится|начн[её]тся|будет\s+проходить)/i.test(value);
+}
+
+function tavridaDetailBatches(fetched: SafeFetchResult, profile: SourceProfile) {
+  const rawTitle = metaContent(fetched.body, "og:title") ?? textByClass(fetched.body, "name", 180) ?? pageTitle(fetched.body);
+  const title = rawTitle?.replace(/\s*[-—|]\s*Новости\s+[«\"].*$/i, "").trim() ?? null;
+  if (!title || title.length < 3) return [];
+  const description = articleTextFromHtml(fetched.body)
+    ?? metaContent(fetched.body, "og:description")
+    ?? metaContent(fetched.body, "description");
+  const published = textByClass(fetched.body, "date", 120);
+  const eventInterval = description
+    ? extractRussianEventInterval(description, yearFromText(published))
+    : null;
+  const isEvent = Boolean(eventInterval && hasFutureEventLanguage(`${title}\n${description ?? ""}`));
+  const sourceText = [title, description, published, eventInterval?.excerpt].filter(Boolean).join("\n");
+  const priceText = description?.match(/\b\d[\d\s]*(?:₽|руб(?:\.|лей)?)/i)?.[0]?.replace(/\s+/g, " ") ?? null;
+  const batch = createClosedPublicationBatch({
+    sourceUrl: fetched.finalUrl,
+    sourceText,
+    profile,
+    externalId: new URL(fetched.finalUrl).pathname.split("/").filter(Boolean).at(-1) ?? fetched.finalUrl,
+    type: isEvent ? "event" : "news",
+    title,
+    description,
+    startsAt: isEvent ? eventInterval?.startsAt : null,
+    endsAt: isEvent ? eventInterval?.endsAt : null,
+    priceText,
+    isFree: Boolean(description && /\bбесплатн\w*/i.test(description)),
+    ageLimit: description?.match(/(?:^|\s)(\d{1,2}\+)(?:\s|[.,;)]|$)/)?.[1] ?? null,
+    imageSourceUrl: imageFromHtml(fetched.body, fetched.finalUrl),
+    evidence: [
+      { field: "title", excerpt: title },
+      ...(description ? [{ field: "description", excerpt: description.slice(0, 280) }] : []),
+      ...(isEvent && eventInterval ? [{ field: "dates", excerpt: eventInterval.excerpt }] : [])
+    ],
+    warnings: [
+      "Материал обогащён данными подробной страницы Тавриды и оставлен в закрытой очереди.",
+      published ? `Дата исходного материала: ${published}.` : "Дата исходного материала не указана.",
+      isEvent && !eventInterval?.exactTime
+        ? "Источник указывает дни события без точного времени; использованы границы календарных дней."
+        : null
+    ].filter((value): value is string => Boolean(value))
+  });
+  return batch ? [batch] : [];
+}
+
 const tavridaAdapter: SourceAdapter = {
   id: "tavrida-news-v1",
   matches: (url) => (url.hostname === "tavrida.art" || url.hostname === "www.tavrida.art")
     && (url.pathname === "/" || url.pathname.startsWith("/news")),
   async extract(input, profile) {
-    return tavridaCardBatches(input.fetched, profile);
+    if (/^\/news\/[^/]+\/?$/.test(new URL(input.fetched.finalUrl).pathname)) {
+      return tavridaDetailBatches(input.fetched, profile);
+    }
+    const cards = tavridaCardBatches(input.fetched, profile);
+    return enrichDetailBatches(cards, profile, input.fetchDetail, tavridaDetailBatches);
   }
 };
 
@@ -272,7 +445,8 @@ function aquaparkDetailBatches(fetched: SafeFetchResult, profile: SourceProfile)
   const rawTitle = metaContent(fetched.body, "og:title") ?? pageTitle(fetched.body);
   const title = rawTitle?.replace(/\s*[-—|]\s*Аквапарк.*$/i, "").trim() ?? null;
   if (!title || title.length < 3) return [];
-  const description = metaContent(fetched.body, "description")
+  const description = articleTextFromHtml(fetched.body, 4000)
+    ?? metaContent(fetched.body, "description")
     ?? metaContent(fetched.body, "og:description")
     ?? visible.slice(0, 1500);
   const priceText = visible.match(/\b\d[\d\s]*(?:₽|руб(?:\.|лей)?)/i)?.[0]?.replace(/\s+/g, " ") ?? null;
@@ -332,7 +506,8 @@ function meganomBatches(fetched: SafeFetchResult, profile: SourceProfile) {
   const visible = fetched.text || sanitizeSourceText(fetched.body);
   const title = metaContent(fetched.body, "og:title") ?? pageTitle(fetched.body);
   if (!title) return [];
-  const description = metaContent(fetched.body, "og:description")
+  const description = articleTextFromHtml(fetched.body, 4000)
+    ?? metaContent(fetched.body, "og:description")
     ?? metaContent(fetched.body, "description")
     ?? visible.slice(0, 1500);
   const ageLimit = visible.match(/(?:^|\s)(\d{1,2}\+)(?:\s|$)/)?.[1] ?? null;
@@ -380,22 +555,39 @@ const adapters = [cultureAdapter, tavridaAdapter, aquaparkAdapter, libraryAdapte
 function unknownHtmlBatch(fetched: SafeFetchResult, profile: SourceProfile) {
   const title = metaContent(fetched.body, "og:title") ?? pageTitle(fetched.body);
   if (!title) return [];
-  const description = metaContent(fetched.body, "og:description")
+  const description = articleTextFromHtml(fetched.body)
+    ?? metaContent(fetched.body, "og:description")
     ?? metaContent(fetched.body, "description")
     ?? fetched.text.slice(0, 1200);
+  const published = metaContent(fetched.body, "article:published_time");
+  const semanticInterval = semanticEventIntervalFromHtml(fetched.body);
+  const textInterval = extractRussianEventInterval(description, yearFromText(published));
+  const isEvent = Boolean(semanticInterval || (textInterval && hasFutureEventLanguage(`${title}\n${description}`)));
+  const eventInterval = semanticInterval ?? textInterval;
   const sourceText = [title, description, fetched.text].filter(Boolean).join("\n");
   const batch = createClosedPublicationBatch({
     sourceUrl: fetched.finalUrl,
     sourceText,
     profile,
     externalId: fetched.finalUrl,
+    type: isEvent ? "event" : "news",
     title,
     description,
+    startsAt: isEvent ? eventInterval?.startsAt : null,
+    endsAt: isEvent ? eventInterval?.endsAt : null,
     imageSourceUrl: imageFromHtml(fetched.body, fetched.finalUrl),
+    evidence: [
+      { field: "title", excerpt: title },
+      { field: "description", excerpt: description.slice(0, 280) },
+      ...(isEvent && textInterval ? [{ field: "dates", excerpt: textInterval.excerpt }] : [])
+    ],
     warnings: [
       "Для источника нет утверждённого адаптера; материал оставлен в закрытой очереди.",
-      "Codex должен проверить источник и подготовить отдельный адаптер перед регулярным импортом."
-    ]
+      "Codex должен проверить источник и подготовить отдельный адаптер перед регулярным импортом.",
+      isEvent && !semanticInterval
+        ? "Источник указывает дни события без точного времени; использованы границы календарных дней."
+        : null
+    ].filter((value): value is string => Boolean(value))
   });
   return batch ? [batch] : [];
 }
@@ -416,21 +608,21 @@ export async function extractSourceCandidates({
     };
   }
 
-  const jsonLd = parseJsonLdCandidateBatches(fetched.body, fetched.finalUrl, profile);
-  if (jsonLd.length > 0) {
-    return {
-      adapterId: "schema-org-json-ld-v1",
-      format: "json_ld",
-      batches: withImageFallback(jsonLd, imageFromHtml(fetched.body, fetched.finalUrl))
-    };
-  }
-
   const adapter = adapters.find((item) => item.matches(url));
   if (adapter) {
     return {
       adapterId: adapter.id,
       format: "adapter",
       batches: await adapter.extract({ fetched, sourceKind, sourceName, fetchDetail }, profile)
+    };
+  }
+
+  const jsonLd = parseJsonLdCandidateBatches(fetched.body, fetched.finalUrl, profile);
+  if (jsonLd.length > 0) {
+    return {
+      adapterId: "schema-org-json-ld-v1",
+      format: "json_ld",
+      batches: withImageFallback(jsonLd, imageFromHtml(fetched.body, fetched.finalUrl))
     };
   }
 

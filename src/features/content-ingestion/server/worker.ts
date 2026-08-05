@@ -131,12 +131,27 @@ async function findCrossSourceDuplicate(
 async function findSameSourceCandidate(
   fingerprint: string,
   sourceUrl: string,
-  action: ExtractedCandidate["action"]
+  action: ExtractedCandidate["action"],
+  externalId: string | null
 ) {
   const admin = createSupabaseAdminClient();
-  const { data } = await admin
+  let identityQuery = admin
     .from("content_candidates")
-    .select("id, status")
+    .select("id, status, content_hash")
+    .eq("source_url", sourceUrl)
+    .eq("action", action)
+    .in("status", ["pending", "approved", "duplicate", "stale"])
+    .order("created_at", { ascending: false })
+    .limit(1);
+  identityQuery = externalId
+    ? identityQuery.eq("external_id", externalId)
+    : identityQuery.is("external_id", null);
+  const { data: identity } = await identityQuery.maybeSingle();
+  if (identity) return identity;
+
+  const { data: fingerprintMatch } = await admin
+    .from("content_candidates")
+    .select("id, status, content_hash")
     .eq("normalized_fingerprint", fingerprint)
     .eq("source_url", sourceUrl)
     .eq("action", action)
@@ -144,7 +159,7 @@ async function findSameSourceCandidate(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  return data ?? null;
+  return fingerprintMatch ?? null;
 }
 
 async function findPublicationDuplicate(payload: PublicationCandidatePayload) {
@@ -219,9 +234,34 @@ async function insertCandidate({
   const admin = createSupabaseAdminClient();
   const contentHash = createContentHash({ action: candidate.action, payload, evidence });
   const fingerprint = createContentFingerprint(payload);
-  const sameSourceCandidate = await findSameSourceCandidate(fingerprint, sourceUrl, candidate.action);
+  const sameSourceCandidate = await findSameSourceCandidate(
+    fingerprint,
+    sourceUrl,
+    candidate.action,
+    candidate.externalId
+  );
   if (sameSourceCandidate) {
-    await admin.from("content_candidates").update({ last_seen_at: sourceCheckedAt }).eq("id", sameSourceCandidate.id);
+    const refreshable = sameSourceCandidate.status === "pending"
+      || sameSourceCandidate.status === "duplicate"
+      || sameSourceCandidate.status === "stale";
+    const refreshPayload = refreshable && sameSourceCandidate.content_hash !== contentHash;
+    const { error } = await admin.from("content_candidates").update(refreshPayload ? {
+      payload,
+      evidence,
+      warnings,
+      source_checked_at: sourceCheckedAt,
+      external_id: candidate.externalId,
+      content_hash: contentHash,
+      normalized_fingerprint: fingerprint,
+      target_organization_id: payload.kind === "publication" ? payload.organizationId : null,
+      target_publication_id: payload.kind === "publication" ? payload.targetPublicationId : null,
+      source_excerpt: sourceExcerpt,
+      raw_expires_at: new Date(Date.parse(sourceCheckedAt) + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      last_seen_at: sourceCheckedAt
+    } : {
+      last_seen_at: sourceCheckedAt
+    }).eq("id", sameSourceCandidate.id);
+    if (error) throw new Error("Не получилось обновить повторно найденного кандидата.");
     return { id: sameSourceCandidate.id, created: false, duplicate: true };
   }
   const duplicateCandidateId = await findCrossSourceDuplicate(fingerprint, sourceUrl);
