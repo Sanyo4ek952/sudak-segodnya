@@ -2,7 +2,7 @@ begin;
 
 set search_path = public, extensions;
 
-select plan(16);
+select plan(19);
 
 create or replace function pg_temp.statement_raises(statement text)
 returns boolean
@@ -35,14 +35,16 @@ insert into auth.users (id, email)
 values
   ('00000000-0000-0000-0000-000000000021', 'publication-owner@example.test'),
   ('00000000-0000-0000-0000-000000000022', 'publication-manager@example.test'),
-  ('00000000-0000-0000-0000-000000000023', 'publication-outsider@example.test')
+  ('00000000-0000-0000-0000-000000000023', 'publication-outsider@example.test'),
+  ('00000000-0000-0000-0000-000000000024', 'publication-admin@example.test')
 on conflict (id) do nothing;
 
 insert into public.profiles (id, role, display_name)
 values
   ('00000000-0000-0000-0000-000000000021', 'user', 'Publication Owner'),
   ('00000000-0000-0000-0000-000000000022', 'user', 'Publication Manager'),
-  ('00000000-0000-0000-0000-000000000023', 'user', 'Publication Outsider')
+  ('00000000-0000-0000-0000-000000000023', 'user', 'Publication Outsider'),
+  ('00000000-0000-0000-0000-000000000024', 'admin', 'Publication Admin')
 on conflict (id) do update
 set role = excluded.role,
     display_name = excluded.display_name;
@@ -218,6 +220,54 @@ select is(
   'Manager edited event',
   'manager edits an already published publication'
 );
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000023', true);
+
+select ok(
+  pg_temp.statement_raises(
+    $$ select public.save_admin_publication(
+      '21100000-0000-0000-0000-000000000001',
+      '22100000-0000-0000-0000-000000000003',
+      '23100000-0000-0000-0000-000000000009',
+      'publish', 'event', 'Forbidden admin edit', 'Complete event description',
+      '31100000-0000-0000-0000-000000000001',
+      now() + interval '1 day', now() + interval '1 day 4 hours',
+      null, null, 'Sudak', '700 ₽', false, '6+', null, '[]'::jsonb
+    ) $$
+  ),
+  'non-admin cannot use the admin publication editor'
+);
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000024', true);
+
+select is(
+  (
+    select title
+    from public.save_admin_publication(
+      '21100000-0000-0000-0000-000000000001',
+      '22100000-0000-0000-0000-000000000003',
+      '23100000-0000-0000-0000-000000000010',
+      'publish', 'event', 'Administrator edited event', 'Description edited by administrator',
+      '31100000-0000-0000-0000-000000000001',
+      now() + interval '1 day', now() + interval '1 day 4 hours',
+      null, null, 'Sudak embankment', '700 ₽', false, '6+', null, '[]'::jsonb
+    )
+  ),
+  'Administrator edited event',
+  'administrator edits an existing event'
+);
+
+select is(
+  (
+    select author_id::text || ':' || status::text
+    from public.publications
+    where id = '22100000-0000-0000-0000-000000000003'
+  ),
+  '00000000-0000-0000-0000-000000000022:published',
+  'admin content edit preserves the original author and publication status'
+);
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000022', true);
 
 update public.publications
 set status = 'hidden'

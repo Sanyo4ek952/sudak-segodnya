@@ -1330,6 +1330,29 @@ export type Database = {
         Args: { p_invitation_id: string }
         Returns: undefined
       }
+      save_admin_publication: {
+        Args: {
+          p_age_limit: string | null
+          p_category_id: string
+          p_client_request_id: string | null
+          p_contact_phone: string | null
+          p_description: string | null
+          p_ends_at: string | null
+          p_intent: string
+          p_is_free: boolean
+          p_organization_id: string
+          p_place: string | null
+          p_price_text: string | null
+          p_publication_id: string
+          p_publish_at: string | null
+          p_schedule_entries: Json
+          p_starts_at: string | null
+          p_title: string
+          p_type: Database["public"]["Enums"]["publication_type"]
+          p_valid_until: string | null
+        }
+        Returns: Database["public"]["Tables"]["publications"]["Row"]
+      }
       save_member_publication: {
         Args: {
           p_age_limit: string | null

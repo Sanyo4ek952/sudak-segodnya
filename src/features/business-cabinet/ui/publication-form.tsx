@@ -97,7 +97,8 @@ export function PublicationForm({
   categories,
   organizationAddress,
   draftPublicationId,
-  clientRequestId
+  clientRequestId,
+  isAdminEditor = false
 }: {
   organizationId: string;
   publication?: BusinessPublication | null;
@@ -105,6 +106,7 @@ export function PublicationForm({
   organizationAddress?: string | null;
   draftPublicationId: string;
   clientRequestId: string;
+  isAdminEditor?: boolean;
 }) {
   const [state, action] = useActionState(savePublicationAction, initialBusinessActionState);
   const [step, setStep] = useState(0);
@@ -653,7 +655,11 @@ export function PublicationForm({
           </Button>
         ) : (
           <div className="flex flex-col gap-3 sm:flex-row">
-            {currentStatus === "published" ? (
+            {isAdminEditor ? (
+              <SubmitButton name="intent" value={uploadIntent} pendingLabel="Сохраняем...">
+                Сохранить изменения
+              </SubmitButton>
+            ) : currentStatus === "published" ? (
               <SubmitButton name="intent" value="publish" pendingLabel="Сохраняем...">
                 Сохранить изменения
               </SubmitButton>
