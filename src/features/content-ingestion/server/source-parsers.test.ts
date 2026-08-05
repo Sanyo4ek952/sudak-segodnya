@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  extractRussianEventInterval,
   parseJsonLdCandidateBatches,
   parseRssCandidateBatches,
   toMoscowOffsetIso,
@@ -109,6 +110,67 @@ describe("deterministic content source parsers", () => {
     }
   });
 
+  it("uses full encoded RSS content and decodes its image URL", () => {
+    const [batch] = parseRssCandidateBatches(`<rss><channel><item>
+      <title>Книжная выставка</title>
+      <link>https://libsudak.ru/news/exhibition</link>
+      <description>&lt;p&gt;Короткий анонс...&lt;/p&gt;</description>
+      <content:encoded>&lt;p&gt;Полное описание выставки с важными подробностями для посетителей.&lt;/p&gt;
+        &lt;img src=&quot;https://libsudak.ru/SMI/2026/08/exhibition.jpg&quot; /&gt;</content:encoded>
+      <pubDate>Tue, 04 Aug 2026 09:00:00 GMT</pubDate>
+    </item></channel></rss>`, "https://libsudak.ru/news/rss/", cultureProfile);
+
+    const candidate = batch.candidates[0];
+    if (candidate.payload.kind === "publication") {
+      expect(candidate.payload.description).toContain("Полное описание выставки");
+      expect(candidate.payload.description).not.toContain("Короткий анонс");
+      expect(candidate.payload.imageSourceUrl)
+        .toBe("https://libsudak.ru/SMI/2026/08/exhibition.jpg");
+    }
+  });
+
+  it("extracts explicit Russian event ranges without inventing a time", () => {
+    expect(extractRussianEventInterval(
+      "Фестиваль пройдёт в Крыму с 7 по 9 августа и объединит молодых творцов.",
+      2026
+    )).toEqual({
+      startsAt: "2026-08-07T00:00:00+03:00",
+      endsAt: "2026-08-09T23:59:59+03:00",
+      excerpt: "с 7 по 9 августа",
+      exactTime: false
+    });
+  });
+
+  it("treats date-only JSON-LD event endings as the end of the day", () => {
+    const [batch] = parseJsonLdCandidateBatches(`<script type="application/ld+json">{
+      "@type":"Event",
+      "name":"Городской праздник",
+      "description":"Подробная программа городского праздника.",
+      "startDate":"2026-08-22",
+      "location":"Судак"
+    }</script>`, "https://example.org/event", cultureProfile);
+    const candidate = batch.candidates[0];
+    if (candidate.payload.kind === "publication") {
+      expect(candidate.payload.startsAt).toBe("2026-08-22T00:00:00+03:00");
+      expect(candidate.payload.endsAt).toBe("2026-08-22T23:59:59+03:00");
+    }
+  });
+
+  it("prefers a full JSON-LD article body and the first usable image", () => {
+    const [batch] = parseJsonLdCandidateBatches(`<script type="application/ld+json">{
+      "@type":"NewsArticle",
+      "headline":"Подробная городская новость",
+      "description":"Короткий анонс.",
+      "articleBody":"Полный текст новости с контекстом, условиями участия и полезными подробностями.",
+      "image":["http://unsafe.example.org/first.jpg", {"contentUrl":"https://example.org/full.jpg"}]
+    }</script>`, "https://example.org/news", cultureProfile);
+    const candidate = batch.candidates[0];
+    if (candidate.payload.kind === "publication") {
+      expect(candidate.payload.description).toContain("Полный текст новости");
+      expect(candidate.payload.imageSourceUrl).toBe("https://example.org/full.jpg");
+    }
+  });
+
   it("keeps unknown content-bearing JSON-LD in the closed queue", () => {
     const html = `<script type="application/ld+json">{
       "@type":"CreativeWork",
@@ -124,5 +186,6 @@ describe("deterministic content source parsers", () => {
 
   it("does not reinterpret an explicit timezone as local time", () => {
     expect(toMoscowOffsetIso("2026-08-04T12:00:00+03:00")).toBe("2026-08-04T12:00:00+03:00");
+    expect(toMoscowOffsetIso("2026-08-04", true)).toBe("2026-08-04T23:59:59+03:00");
   });
 });

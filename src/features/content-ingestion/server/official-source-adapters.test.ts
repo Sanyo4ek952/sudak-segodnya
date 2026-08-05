@@ -17,6 +17,16 @@ function fetched(finalUrl: string, body: string, contentType = "text/html"): Saf
 
 describe("official content source adapters", () => {
   it("uses the Tavrida news adapter without a runtime LLM", async () => {
+    const detail = fetched("https://tavrida.art/news/news-id", `<html><head>
+      <meta property="og:title" content="Фестиваль в Судаке - Новости «Таврида АРТ»" />
+      <meta property="og:image" content="https://tavrida.art/images/detail.webp" />
+    </head><body>
+      <div class="date svelte-test">4 марта 2026 года</div>
+      <div class="articleTextFromBackStyleContainer RAW_HTML_CONTAINER svelte-test">
+        <p>Это полное описание материала, которого нет в карточке списка.</p>
+        <p>Фестиваль пройдёт в Судаке с 7 по 9 августа 2026 года.</p>
+      </div>
+    </body></html>`);
     const result = await extractSourceCandidates({
       fetched: fetched("https://tavrida.art/news", `
         <a class="CardArticle svelte-test" href="/news/news-id">
@@ -26,7 +36,8 @@ describe("official content source adapters", () => {
           <div class="teaser svelte-test">Официальное объявление арт-кластера.</div>
         </a>`),
       sourceKind: "html",
-      sourceName: "Арт-кластер «Таврида»"
+      sourceName: "Арт-кластер «Таврида»",
+      fetchDetail: async () => detail
     });
 
     expect(result.adapterId).toBe("tavrida-news-v1");
@@ -35,7 +46,11 @@ describe("official content source adapters", () => {
     expect(result.batches[0].sourceUrl).toBe("https://tavrida.art/news/news-id");
     const candidate = result.batches[0].candidates[0];
     if (candidate.payload.kind === "publication") {
-      expect(candidate.payload.imageSourceUrl).toBe("https://tavrida.art/images/news-id.webp");
+      expect(candidate.payload.description).toContain("полное описание материала");
+      expect(candidate.payload.type).toBe("event");
+      expect(candidate.payload.startsAt).toBe("2026-08-07T00:00:00+03:00");
+      expect(candidate.payload.endsAt).toBe("2026-08-09T23:59:59+03:00");
+      expect(candidate.payload.imageSourceUrl).toBe("https://tavrida.art/images/detail.webp");
     }
   });
 
@@ -53,6 +68,11 @@ describe("official content source adapters", () => {
       }</script>`);
     const result = await extractSourceCandidates({
       fetched: fetched("https://www.culture.ru/afisha/respublika-krym-sudak", `
+        <script type="application/ld+json">{
+          "@type":"Organization",
+          "name":"Культура.РФ",
+          "url":"https://www.culture.ru/"
+        }</script>
         <a href="/events/42/sudak?location=respublika-krym-sudak">Событие</a>`),
       sourceKind: "html",
       sourceName: "Культура.РФ",
@@ -130,7 +150,11 @@ describe("official content source adapters", () => {
         <html><head><title>Официальное сообщение</title>
         <meta name="description" content="Материал нового официального источника." />
         <meta property="og:image" content="https://official.example.org/images/42.png" />
-        </head><body></body></html>`),
+        <meta property="event:start_time" content="2026-08-22" />
+        <meta property="event:end_time" content="2026-08-23" />
+        </head><body><article>
+          <p>Полное описание официального события с программой и условиями посещения.</p>
+        </article></body></html>`),
       sourceKind: "html",
       sourceName: "Новый источник"
     });
@@ -140,6 +164,10 @@ describe("official content source adapters", () => {
     expect(result.batches[0].candidates[0].warnings.join(" ")).toContain("Codex");
     expect(result.batches[0].candidates[0].warnings.join(" ")).toContain("закрытой очереди");
     if (result.batches[0].candidates[0].payload.kind === "publication") {
+      expect(result.batches[0].candidates[0].payload.description).toContain("Полное описание");
+      expect(result.batches[0].candidates[0].payload.type).toBe("event");
+      expect(result.batches[0].candidates[0].payload.startsAt).toBe("2026-08-22T00:00:00+03:00");
+      expect(result.batches[0].candidates[0].payload.endsAt).toBe("2026-08-23T23:59:59+03:00");
       expect(result.batches[0].candidates[0].payload.imageSourceUrl)
         .toBe("https://official.example.org/images/42.png");
     }
