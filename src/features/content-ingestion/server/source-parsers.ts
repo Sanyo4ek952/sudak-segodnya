@@ -247,7 +247,7 @@ export function extractRussianEventInterval(value: string, fallbackYear?: number
     "gi"
   );
   const eventCue = /(?:пройд[её]т|состоится|начн[её]тся|будет\s+проходить)/i;
-  for (const match of normalized.matchAll(singleDate)) {
+  for (const match of Array.from(normalized.matchAll(singleDate))) {
     if (!match[1] || !match[2]) continue;
     const start = match.index ?? 0;
     const context = normalized.slice(Math.max(0, start - 90), Math.min(normalized.length, start + match[0].length + 90));
