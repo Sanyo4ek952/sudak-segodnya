@@ -79,6 +79,36 @@ describe("publication input contract", () => {
     ).toBe(false);
   });
 
+  it("accepts news without event dates when validUntil is set", () => {
+    expect(
+      schema.safeParse({
+        ...validEvent,
+        type: "news",
+        startsAt: "",
+        endsAt: "",
+        validUntil: "2026-08-30T18:00:00.000Z",
+        place: "",
+        priceText: "",
+        ageLimit: "",
+        contactPhone: ""
+      }).success
+    ).toBe(true);
+  });
+
+  it("accepts an announcement without event dates or a price", () => {
+    expect(
+      schema.safeParse({
+        ...validEvent,
+        type: "announcement",
+        startsAt: "",
+        endsAt: "",
+        validUntil: "2026-08-30T18:00:00.000Z",
+        place: "",
+        priceText: ""
+      }).success
+    ).toBe(true);
+  });
+
   it("rejects an expired non-event publication", () => {
     expect(
       schema.safeParse({

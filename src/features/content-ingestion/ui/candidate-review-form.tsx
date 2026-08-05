@@ -193,7 +193,11 @@ export function CandidateReviewForm({
       )}
 
       {editable ? (
-        <FormField id="candidate-review-comment" label="Комментарий" hint="Для отклонения комментарий обязателен.">
+        <FormField
+          id="candidate-review-comment"
+          label="Комментарий"
+          hint="Внутренний комментарий: посетители не увидят его. Для отклонения он обязателен."
+        >
           <Textarea id="candidate-review-comment" name="reviewComment" maxLength={2000} />
         </FormField>
       ) : null}

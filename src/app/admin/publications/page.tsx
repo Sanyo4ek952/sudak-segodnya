@@ -40,8 +40,6 @@ function statusVariant(status: string) {
   return "muted";
 }
 
-const editableStatuses = new Set(["draft", "scheduled", "moderation", "published"]);
-
 export default async function AdminPublicationsPage({ searchParams }: AdminPublicationsPageProps) {
   const params = (await searchParams) ?? {};
   const status = parseFilter(firstSearchValue(params.status), adminPublicationFilters, "published");
@@ -104,15 +102,13 @@ export default async function AdminPublicationsPage({ searchParams }: AdminPubli
                   publicationId={publication.id}
                   status={publication.status}
                 />
-                {editableStatuses.has(publication.status) ? (
-                  <LinkButton
-                    href={`/admin/publications/${publication.id}`}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Редактировать публикацию
-                  </LinkButton>
-                ) : null}
+                <LinkButton
+                  href={`/admin/publications/${publication.id}`}
+                  variant="outline"
+                  size="sm"
+                >
+                  Редактировать публикацию
+                </LinkButton>
               </CardContent>
             </Card>
           ))}

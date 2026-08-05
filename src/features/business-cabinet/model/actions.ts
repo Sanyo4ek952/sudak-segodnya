@@ -285,6 +285,8 @@ async function removePublicationImage(
 
   await supabase.storage.from(asset.bucket_id).remove([asset.storage_path]);
   revalidatePath(`/business/${organizationId}/publications/${publicationId}`);
+  revalidatePath(`/admin/publications/${publicationId}`);
+  revalidatePath("/admin/publications");
   revalidatePath("/");
   return { ...actionSuccess("Изображение удалено."), imageRemoved: true };
 }
@@ -402,6 +404,8 @@ async function removeOrganizationImage(
 
   await supabase.storage.from(asset.bucket_id).remove([asset.storage_path]);
   revalidatePath(`/business/${organizationId}/profile`);
+  revalidatePath(`/admin/organizations/${organizationId}`);
+  revalidatePath("/admin/organizations");
   revalidatePath("/organizations");
   return {
     ...actionSuccess("Изображение удалено."),
@@ -1327,7 +1331,7 @@ export async function savePublicationAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: publication, error } = await supabase.rpc("save_member_publication", {
+  const rpcArguments = {
     p_age_limit: toOptionalText(parsed.data.ageLimit),
     p_category_id: parsed.data.categoryId,
     p_client_request_id: parsed.data.clientRequestId,
@@ -1353,7 +1357,14 @@ export async function savePublicationAction(
     p_title: parsed.data.title,
     p_type: parsed.data.type,
     p_valid_until: toOptionalText(parsed.data.validUntil)
-  });
+  };
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+  const { data: publication, error } = isAdmin
+    ? await supabase.rpc("save_admin_publication", {
+        ...rpcArguments,
+        p_publication_id: parsed.data.publicationId
+      })
+    : await supabase.rpc("save_member_publication", rpcArguments);
 
   if (error || !publication) {
     return actionError(getPublicationRpcError(error?.message ?? ""));
@@ -1373,6 +1384,8 @@ export async function savePublicationAction(
     }
 
     revalidatePath(`/business/${parsed.data.organizationId}/publications/${publication.id}`);
+    revalidatePath(`/admin/publications/${publication.id}`);
+    revalidatePath("/admin/publications");
     revalidatePath("/");
     return {
       ...actionSuccess("Изображение загружено. Введённые данные сохранены."),
@@ -1384,8 +1397,12 @@ export async function savePublicationAction(
 
   revalidatePath(`/business/${parsed.data.organizationId}`);
   revalidatePath(`/business/${parsed.data.organizationId}/publications`);
+  revalidatePath(`/admin/publications/${publication.id}`);
+  revalidatePath("/admin/publications");
   revalidatePath("/");
-  const message = parsed.data.intent === "draft"
+  const message = isAdmin
+    ? "Изменения публикации сохранены."
+    : parsed.data.intent === "draft"
     ? "Черновик сохранён."
     : parsed.data.intent === "schedule"
       ? "Публикация запланирована."

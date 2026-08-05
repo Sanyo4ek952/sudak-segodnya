@@ -26,7 +26,11 @@ export function ReportReviewForm({ reportId }: ReportReviewFormProps) {
           <option value="rejected">Отклонено</option>
         </Select>
       </FormField>
-      <FormField id={`reportComment-${reportId}`} label="Комментарий администратора">
+      <FormField
+        id={`reportComment-${reportId}`}
+        label="Комментарий администратора"
+        hint="Внутренний комментарий: посетители не увидят его в публичной части."
+      >
         <Textarea id={`reportComment-${reportId}`} name="adminComment" maxLength={1000} />
       </FormField>
       <SubmitButton size="sm" pendingLabel="Сохраняем...">Обновить</SubmitButton>

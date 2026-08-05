@@ -9,8 +9,6 @@ import { PublicationForm } from "@/features/business-cabinet/ui/publication-form
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
 
-const editableStatuses = new Set(["draft", "scheduled", "moderation", "published"]);
-
 type AdminPublicationEditPageProps = {
   params: Promise<{ id: string }>;
 };
@@ -24,7 +22,7 @@ export default async function AdminPublicationEditPage({
     getPublicationCategories()
   ]);
 
-  if (!publication || !editableStatuses.has(publication.status)) {
+  if (!publication) {
     notFound();
   }
 
@@ -50,6 +48,7 @@ export default async function AdminPublicationEditPage({
             categories={categories}
             draftPublicationId={publication.id}
             clientRequestId={publication.client_request_id ?? randomUUID()}
+            isAdminEditor
           />
         </CardContent>
       </Card>

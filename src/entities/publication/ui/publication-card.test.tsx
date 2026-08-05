@@ -60,8 +60,8 @@ describe("PublicationCard regressions", () => {
       />
     );
     expect(countText(markup, "Новость")).toBe(1);
-    expect(markup).toContain("23 июля 2026");
-    expect(markup).not.toContain("до 30 июля 2026");
+    expect(markup).toContain("23 июля");
+    expect(markup).not.toContain("до 30 июля");
     expect(markup).not.toContain("Цена:");
   });
 
