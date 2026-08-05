@@ -357,12 +357,12 @@ function semanticEventIntervalFromHtml(html: string) {
 }
 
 function hasFutureEventLanguage(value: string) {
-  return /(?:пройд[её]т|состоится|начн[её]тся|будет\s+проходить)/iu.test(value);
+  return /(?:пройд[её]т|состоится|начн[её]тся|будет\s+проходить)/i.test(value);
 }
 
 function tavridaDetailBatches(fetched: SafeFetchResult, profile: SourceProfile) {
   const rawTitle = metaContent(fetched.body, "og:title") ?? textByClass(fetched.body, "name", 180) ?? pageTitle(fetched.body);
-  const title = rawTitle?.replace(/\s*[-—|]\s*Новости\s+[«\"].*$/iu, "").trim() ?? null;
+  const title = rawTitle?.replace(/\s*[-—|]\s*Новости\s+[«\"].*$/i, "").trim() ?? null;
   if (!title || title.length < 3) return [];
   const description = articleTextFromHtml(fetched.body)
     ?? metaContent(fetched.body, "og:description")
@@ -373,7 +373,7 @@ function tavridaDetailBatches(fetched: SafeFetchResult, profile: SourceProfile) 
     : null;
   const isEvent = Boolean(eventInterval && hasFutureEventLanguage(`${title}\n${description ?? ""}`));
   const sourceText = [title, description, published, eventInterval?.excerpt].filter(Boolean).join("\n");
-  const priceText = description?.match(/\b\d[\d\s]*(?:₽|руб(?:\.|лей)?)/iu)?.[0]?.replace(/\s+/g, " ") ?? null;
+  const priceText = description?.match(/\b\d[\d\s]*(?:₽|руб(?:\.|лей)?)/i)?.[0]?.replace(/\s+/g, " ") ?? null;
   const batch = createClosedPublicationBatch({
     sourceUrl: fetched.finalUrl,
     sourceText,
@@ -385,8 +385,8 @@ function tavridaDetailBatches(fetched: SafeFetchResult, profile: SourceProfile) 
     startsAt: isEvent ? eventInterval?.startsAt : null,
     endsAt: isEvent ? eventInterval?.endsAt : null,
     priceText,
-    isFree: Boolean(description && /\bбесплатн\w*/iu.test(description)),
-    ageLimit: description?.match(/(?:^|\s)(\d{1,2}\+)(?:\s|[.,;)]|$)/u)?.[1] ?? null,
+    isFree: Boolean(description && /\bбесплатн\w*/i.test(description)),
+    ageLimit: description?.match(/(?:^|\s)(\d{1,2}\+)(?:\s|[.,;)]|$)/)?.[1] ?? null,
     imageSourceUrl: imageFromHtml(fetched.body, fetched.finalUrl),
     evidence: [
       { field: "title", excerpt: title },
