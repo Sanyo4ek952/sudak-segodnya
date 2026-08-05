@@ -2,8 +2,10 @@ import Link from "next/link";
 import {
   getAdminContentCandidates,
   getContentIngestionAdminOptions,
+  getContentIngestionDomainExclusions,
   getContentSources,
   getRecentContentIngestionRuns,
+  deleteContentIngestionDomainExclusionAction,
   updateContentSourceAction
 } from "@/features/content-ingestion/model/actions";
 import {
@@ -16,8 +18,10 @@ import {
   contentCandidateActions,
   contentCandidatePayloadSchema
 } from "@/features/content-ingestion/model/contracts";
+import { isUrlExcludedByDomain } from "@/features/content-ingestion/model/domain-exclusion";
 import {
   CreateSourceForm,
+  DomainExclusionForm,
   ManualUrlForm,
   RunIngestionForm
 } from "@/features/content-ingestion/ui/source-controls";
@@ -131,13 +135,15 @@ export default async function AdminImportsPage({ searchParams }: AdminImportsPag
   const hasWarnings = firstSearchValue(params.warnings) === "1";
   const page = parsePage(firstSearchValue(params.page));
 
-  const [result, options, sources, runs] = await Promise.all([
+  const [result, options, sources, exclusions, runs] = await Promise.all([
     getAdminContentCandidates({ status, action, sourceId, hasWarnings, page }),
     getContentIngestionAdminOptions(),
     getContentSources(),
+    getContentIngestionDomainExclusions(),
     getRecentContentIngestionRuns(10)
   ]);
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+  const excludedDomains = exclusions.map((exclusion) => exclusion.domain);
 
   return (
     <div className="mx-auto max-w-content space-y-8">
@@ -164,6 +170,42 @@ export default async function AdminImportsPage({ searchParams }: AdminImportsPag
           </CardContent>
         </Card>
       </div>
+
+      <section className="space-y-4">
+        <SectionHeader
+          title="Исключённые домены"
+          description="Ручной и регулярный импорт с этих доменов и их поддоменов не запускается. Существующие материалы не удаляются."
+        />
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+          <Card>
+            <CardContent>
+              <DomainExclusionForm />
+            </CardContent>
+          </Card>
+          {exclusions.length === 0 ? (
+            <EmptyState title="Исключений нет" description="Сейчас импорт разрешён со всех настроенных источников." />
+          ) : (
+            <Card>
+              <CardContent>
+                <ul className="divide-y divide-border">
+                  {exclusions.map((exclusion) => (
+                    <li key={exclusion.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                      <div className="min-w-0">
+                        <p className="break-all font-medium text-foreground">{exclusion.domain}</p>
+                        <p className="text-sm text-foreground-muted">Добавлен {formatDateTime(exclusion.created_at)}</p>
+                      </div>
+                      <form action={deleteContentIngestionDomainExclusionAction}>
+                        <input type="hidden" name="exclusionId" value={exclusion.id} />
+                        <Button type="submit" variant="outline" size="sm">Разрешить импорт</Button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </section>
 
       <section className="space-y-4">
         <SectionHeader
@@ -299,7 +341,12 @@ export default async function AdminImportsPage({ searchParams }: AdminImportsPag
           <EmptyState title="Источников нет" description="Добавьте первый официальный источник в форме выше." />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
-            {sources.map((source) => (
+            {sources.map((source) => {
+              const isExcluded = isUrlExcludedByDomain(
+                source.canonical_url,
+                excludedDomains
+              );
+              return (
               <Card key={source.id}>
                 <CardContent className="space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -309,8 +356,8 @@ export default async function AdminImportsPage({ searchParams }: AdminImportsPag
                         {source.url}
                       </a>
                     </div>
-                    <Badge variant={source.is_active ? "success" : "muted"}>
-                      {source.is_active ? "Активен" : "Выключен"}
+                    <Badge variant={isExcluded ? "warning" : source.is_active ? "success" : "muted"}>
+                      {isExcluded ? "Исключён" : source.is_active ? "Активен" : "Выключен"}
                     </Badge>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -348,7 +395,8 @@ export default async function AdminImportsPage({ searchParams }: AdminImportsPag
                   </form>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

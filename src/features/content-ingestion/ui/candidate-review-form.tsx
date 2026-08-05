@@ -1,8 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
-import type { ContentCandidatePayload } from "@/features/content-ingestion/model/contracts";
-import type { ContentCandidateAction } from "@/features/content-ingestion/model/contracts";
+import { useActionState, useState } from "react";
+import type {
+  ContentCandidateAction,
+  ContentCandidatePayload,
+  OrganizationCandidatePayload
+} from "@/features/content-ingestion/model/contracts";
 import {
   initialContentIngestionActionState
 } from "@/features/content-ingestion/model/types";
@@ -41,6 +44,55 @@ function toLocalDateTime(value: string | null) {
   return formatter.format(date).replace(" ", "T");
 }
 
+function OrganizationCandidateFields({
+  payload,
+  organizationTypes,
+  editable,
+  idPrefix,
+  namePrefix = ""
+}: {
+  payload: OrganizationCandidatePayload;
+  organizationTypes: Option[];
+  editable: boolean;
+  idPrefix: string;
+  namePrefix?: string;
+}) {
+  const fieldName = (name: string) => namePrefix
+    ? `${namePrefix}${name.charAt(0).toUpperCase()}${name.slice(1)}`
+    : name;
+
+  return (
+    <>
+      <FormField id={`${idPrefix}-name`} label="Название">
+        <Input id={`${idPrefix}-name`} name={fieldName("name")} defaultValue={payload.name} maxLength={160} disabled={!editable} required />
+      </FormField>
+      <FormField id={`${idPrefix}-type`} label="Тип организации">
+        <Select id={`${idPrefix}-type`} name={fieldName("typeSlug")} defaultValue={payload.typeSlug} disabled={!editable} required>
+          {organizationTypes.map((option) => <option key={option.id} value={option.slug}>{option.name}</option>)}
+        </Select>
+      </FormField>
+      <FormField id={`${idPrefix}-description`} label="Описание" hint="Обязательно для создания активной организации.">
+        <Textarea id={`${idPrefix}-description`} name={fieldName("description")} defaultValue={payload.description ?? ""} maxLength={4000} disabled={!editable} />
+      </FormField>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField id={`${idPrefix}-address`} label="Адрес">
+          <Input id={`${idPrefix}-address`} name={fieldName("address")} defaultValue={payload.address ?? ""} maxLength={500} disabled={!editable} />
+        </FormField>
+        <FormField id={`${idPrefix}-phone`} label="Телефон" hint="Обязателен для активной организации.">
+          <Input id={`${idPrefix}-phone`} name={fieldName("phone")} defaultValue={payload.phone ?? ""} maxLength={80} disabled={!editable} />
+        </FormField>
+      </div>
+      <FormField id={`${idPrefix}-working-hours`} label="График работы">
+        <Textarea id={`${idPrefix}-working-hours`} name={fieldName("workingHours")} defaultValue={payload.workingHours ?? ""} maxLength={1000} disabled={!editable} />
+      </FormField>
+      <FormField id={`${idPrefix}-image-source`} label="URL изображения источника" hint="Изображение будет безопасно скопировано в приватное хранилище после одобрения.">
+        <Input id={`${idPrefix}-image-source`} name={fieldName("imageSourceUrl")} type="url" defaultValue={payload.imageSourceUrl ?? ""} maxLength={1000} disabled={!editable} />
+      </FormField>
+      <input type="hidden" name={fieldName("contactLinks")} value={JSON.stringify(payload.contactLinks)} />
+    </>
+  );
+}
+
 export function CandidateReviewForm({
   candidateId,
   action: candidateAction,
@@ -49,7 +101,9 @@ export function CandidateReviewForm({
   organizations,
   categories,
   organizationTypes,
-  publications
+  publications,
+  dependencyOrganization,
+  targetOrganizationId
 }: {
   candidateId: string;
   action: ContentCandidateAction;
@@ -59,9 +113,21 @@ export function CandidateReviewForm({
   categories: Option[];
   organizationTypes: Option[];
   publications: PublicationOption[];
+  dependencyOrganization: {
+    id: string;
+    status: string;
+    payload: OrganizationCandidatePayload;
+  } | null;
+  targetOrganizationId: string | null;
 }) {
   const [state, action] = useActionState(reviewContentCandidateAction, initialContentIngestionActionState);
   const editable = status === "pending" || status === "duplicate";
+  const canCreateDependency = dependencyOrganization?.status === "pending";
+  const [organizationChoice, setOrganizationChoice] = useState(
+    payload.kind === "publication"
+      ? payload.organizationId ?? targetOrganizationId ?? (canCreateDependency ? "create_dependency" : "")
+      : ""
+  );
 
   return (
     <form action={action} className="space-y-5">
@@ -69,42 +135,46 @@ export function CandidateReviewForm({
       <input type="hidden" name="payloadKind" value={payload.kind} />
 
       {payload.kind === "organization" ? (
-        <>
-          <FormField id="candidate-name" label="Название">
-            <Input id="candidate-name" name="name" defaultValue={payload.name} maxLength={160} disabled={!editable} required />
-          </FormField>
-          <FormField id="candidate-type" label="Тип организации">
-            <Select id="candidate-type" name="typeSlug" defaultValue={payload.typeSlug} disabled={!editable} required>
-              {organizationTypes.map((option) => <option key={option.id} value={option.slug}>{option.name}</option>)}
-            </Select>
-          </FormField>
-          <FormField id="candidate-description" label="Описание">
-            <Textarea id="candidate-description" name="description" defaultValue={payload.description ?? ""} maxLength={4000} disabled={!editable} />
-          </FormField>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField id="candidate-address" label="Адрес">
-              <Input id="candidate-address" name="address" defaultValue={payload.address ?? ""} maxLength={500} disabled={!editable} />
-            </FormField>
-            <FormField id="candidate-phone" label="Телефон">
-              <Input id="candidate-phone" name="phone" defaultValue={payload.phone ?? ""} maxLength={80} disabled={!editable} />
-            </FormField>
-          </div>
-          <FormField id="candidate-working-hours" label="График работы">
-            <Textarea id="candidate-working-hours" name="workingHours" defaultValue={payload.workingHours ?? ""} maxLength={1000} disabled={!editable} />
-          </FormField>
-          <FormField id="candidate-image-source" label="URL изображения источника" hint="Изображение будет безопасно скопировано в приватное хранилище после одобрения.">
-            <Input id="candidate-image-source" name="imageSourceUrl" type="url" defaultValue={payload.imageSourceUrl ?? ""} maxLength={1000} disabled={!editable} />
-          </FormField>
-          <input type="hidden" name="contactLinks" value={JSON.stringify(payload.contactLinks)} />
-        </>
+        <OrganizationCandidateFields
+          payload={payload}
+          organizationTypes={organizationTypes}
+          editable={editable}
+          idPrefix="candidate"
+        />
       ) : (
         <>
-          <FormField id="candidate-organization" label="Организация" hint="Без активной организации публикация останется черновиком.">
-            <Select id="candidate-organization" name="organizationId" defaultValue={payload.organizationId ?? ""} disabled={!editable}>
-              <option value="">Не сопоставлена — {payload.organizationName}</option>
+          <FormField id="candidate-organization" label="Организация" hint="Выберите существующую организацию или явно создайте новую из импортированного кандидата.">
+            <Select
+              id="candidate-organization"
+              name="organizationId"
+              value={organizationChoice}
+              onChange={(event) => setOrganizationChoice(event.target.value)}
+              disabled={!editable}
+            >
+              <option value="">Не сопоставлена — публикация недоступна</option>
+              {canCreateDependency && dependencyOrganization ? (
+                <option value="create_dependency">Создать новую «{dependencyOrganization.payload.name}»</option>
+              ) : null}
               {organizations.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
             </Select>
           </FormField>
+          {organizationChoice === "create_dependency" && dependencyOrganization ? (
+            <div className="space-y-4 rounded-lg border border-border bg-surface-muted p-4">
+              <div className="space-y-1">
+                <h3 className="font-semibold text-foreground">Новая организация</h3>
+                <p className="text-sm leading-6 text-foreground-muted">
+                  Проверьте данные. Организация и публикация создадутся одной операцией; при ошибке не сохранится ни одна из них.
+                </p>
+              </div>
+              <OrganizationCandidateFields
+                payload={dependencyOrganization.payload}
+                organizationTypes={organizationTypes}
+                editable={editable}
+                idPrefix="dependency"
+                namePrefix="dependency"
+              />
+            </div>
+          ) : null}
           {candidateAction === "update_publication" || candidateAction === "cancel_publication" ? (
             <FormField
               id="candidate-target-publication"

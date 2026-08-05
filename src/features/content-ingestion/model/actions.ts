@@ -21,6 +21,10 @@ import {
   type PagedContentCandidates
 } from "@/features/content-ingestion/model/types";
 import { toMoscowIsoOrOriginal } from "@/features/content-ingestion/model/moscow-date";
+import {
+  isUrlExcludedByDomain,
+  normalizeExcludedDomain
+} from "@/features/content-ingestion/model/domain-exclusion";
 import { normalizeSourceUrl } from "@/features/content-ingestion/server/secure-fetch";
 import {
   IMAGE_IMPORT_WARNING_PREFIX,
@@ -44,6 +48,7 @@ const sourceSchema = z.object({
   trustLevel: z.enum(contentSourceTrustLevels)
 });
 const reviewResultSchema = z.object({
+  organization_candidate_id: postgresUuidSchema.nullable().optional(),
   organization_id: postgresUuidSchema.nullable().optional(),
   publication_id: postgresUuidSchema.nullable().optional()
 }).passthrough();
@@ -188,6 +193,9 @@ export async function getAdminContentCandidate(id: string): Promise<ContentCandi
   if ([source, run, duplicateCandidate, duplicatePublication, duplicateOrganization, dependencyCandidate].some((result) => result.error)) {
     return null;
   }
+  const dependencyPayload = dependencyCandidate.data?.action === "create_organization"
+    ? organizationCandidatePayloadSchema.safeParse(dependencyCandidate.data.payload)
+    : null;
   return {
     ...data,
     content_sources: source.data,
@@ -197,6 +205,7 @@ export async function getAdminContentCandidate(id: string): Promise<ContentCandi
     duplicate_organization: duplicateOrganization.data,
     dependency_candidate: dependencyCandidate.data,
     parsedPayload,
+    parsedDependencyOrganization: dependencyPayload?.success ? dependencyPayload.data : null,
     parsedEvidence: parseStoredEvidence(data.evidence)
   } as unknown as ContentCandidateDetail;
 }
@@ -237,6 +246,16 @@ export async function getContentSources() {
   return data ?? [];
 }
 
+export async function getContentIngestionDomainExclusions() {
+  const { supabase } = await getAdminContext();
+  const { data, error } = await supabase
+    .from("content_ingestion_domain_exclusions")
+    .select("*")
+    .order("domain");
+  if (error) throw new Error("Failed to load excluded import domains");
+  return data ?? [];
+}
+
 export async function getRecentContentIngestionRuns(limit = 10) {
   const { supabase } = await getAdminContext();
   const { data, error } = await supabase
@@ -248,27 +267,35 @@ export async function getRecentContentIngestionRuns(limit = 10) {
   return data ?? [];
 }
 
+function formFieldName(prefix: string, name: string) {
+  return prefix ? `${prefix}${name.charAt(0).toUpperCase()}${name.slice(1)}` : name;
+}
+
+function parseOrganizationCandidateForm(formData: FormData, prefix = "") {
+  let contactLinks: unknown = [];
+  try {
+    contactLinks = JSON.parse(getString(formData, formFieldName(prefix, "contactLinks")) || "[]");
+  } catch {
+    return null;
+  }
+  const parsed = organizationCandidatePayloadSchema.safeParse({
+    kind: "organization",
+    name: getString(formData, formFieldName(prefix, "name")),
+    typeSlug: getString(formData, formFieldName(prefix, "typeSlug")),
+    description: optionalText(getString(formData, formFieldName(prefix, "description"))),
+    address: optionalText(getString(formData, formFieldName(prefix, "address"))),
+    phone: optionalText(getString(formData, formFieldName(prefix, "phone"))),
+    workingHours: optionalText(getString(formData, formFieldName(prefix, "workingHours"))),
+    contactLinks,
+    imageSourceUrl: optionalText(getString(formData, formFieldName(prefix, "imageSourceUrl")))
+  });
+  return parsed.success ? parsed.data : null;
+}
+
 function parseCandidateForm(formData: FormData): ContentCandidatePayload | null {
   const payloadKind = getString(formData, "payloadKind");
   if (payloadKind === "organization") {
-    let contactLinks: unknown = [];
-    try {
-      contactLinks = JSON.parse(getString(formData, "contactLinks") || "[]");
-    } catch {
-      return null;
-    }
-    const parsed = organizationCandidatePayloadSchema.safeParse({
-      kind: "organization",
-      name: getString(formData, "name"),
-      typeSlug: getString(formData, "typeSlug"),
-      description: optionalText(getString(formData, "description")),
-      address: optionalText(getString(formData, "address")),
-      phone: optionalText(getString(formData, "phone")),
-      workingHours: optionalText(getString(formData, "workingHours")),
-      contactLinks,
-      imageSourceUrl: optionalText(getString(formData, "imageSourceUrl"))
-    });
-    return parsed.success ? parsed.data : null;
+    return parseOrganizationCandidateForm(formData);
   }
 
   let scheduleEntries: unknown = [];
@@ -277,9 +304,10 @@ function parseCandidateForm(formData: FormData): ContentCandidatePayload | null 
   } catch {
     return null;
   }
+  const organizationId = postgresUuidSchema.safeParse(getString(formData, "organizationId"));
   const parsed = publicationCandidatePayloadSchema.safeParse({
     kind: "publication",
-    organizationId: optionalText(getString(formData, "organizationId")),
+    organizationId: organizationId.success ? organizationId.data : null,
     organizationName: getString(formData, "organizationName"),
     targetPublicationId: optionalText(getString(formData, "targetPublicationId")),
     type: getString(formData, "publicationType"),
@@ -383,7 +411,7 @@ export async function reviewContentCandidateAction(
   const { supabase, user } = await getAdminContext();
   const { data: candidateRecord, error: candidateError } = await supabase
     .from("content_candidates")
-    .select("action")
+    .select("action, depends_on_candidate_id")
     .eq("id", candidateId.data)
     .maybeSingle();
   if (candidateError || !candidateRecord) return actionError("Кандидат не найден.");
@@ -393,18 +421,59 @@ export async function reviewContentCandidateAction(
     if (!payload) return actionError("Проверьте заполненные поля и расписание.");
   }
 
-  const { data: reviewResult, error } = await supabase.rpc("review_content_candidate", {
-    p_candidate_id: candidateId.data,
-    p_decision: decision.data,
-    p_payload: payload,
-    p_review_comment: reviewComment
-  });
+  const createDependencyOrganization = decision.data !== "reject"
+    && decision.data !== "mark_not_duplicate"
+    && getString(formData, "organizationId") === "create_dependency";
+  const dependencyPayload = createDependencyOrganization
+    ? parseOrganizationCandidateForm(formData, "dependency")
+    : null;
+  if (createDependencyOrganization && (!payload || !candidateRecord.depends_on_candidate_id || !dependencyPayload)) {
+    return actionError("Проверьте обязательные данные новой организации.");
+  }
+  if (dependencyPayload && (!dependencyPayload.description || !dependencyPayload.phone)) {
+    return actionError("Для новой организации заполните описание и телефон.");
+  }
+  if (
+    payload?.kind === "publication"
+    && decision.data !== "reject"
+    && decision.data !== "mark_not_duplicate"
+    && !payload.organizationId
+    && !createDependencyOrganization
+  ) {
+    return actionError("Выберите существующую организацию или создайте новую.");
+  }
+
+  const { data: reviewResult, error } = createDependencyOrganization && dependencyPayload
+    ? await supabase.rpc("review_content_candidate_with_organization", {
+        p_candidate_id: candidateId.data,
+        p_decision: decision.data,
+        p_payload: payload,
+        p_review_comment: reviewComment,
+        p_organization_candidate_id: candidateRecord.depends_on_candidate_id!,
+        p_organization_payload: dependencyPayload
+      })
+    : await supabase.rpc("review_content_candidate", {
+        p_candidate_id: candidateId.data,
+        p_decision: decision.data,
+        p_payload: payload,
+        p_review_comment: reviewComment
+      });
   if (error) return actionError(error.message || "Не получилось сохранить решение.");
 
-  let imageResult: Awaited<ReturnType<typeof importReviewedCandidateImage>> | null = null;
+  const imageWarnings: string[] = [];
+  const parsedResult = reviewResultSchema.safeParse(reviewResult);
+  if (dependencyPayload && parsedResult.success) {
+    const dependencyImageResult = await importReviewedCandidateImage({
+      candidateId: candidateRecord.depends_on_candidate_id!,
+      candidateAction: "create_organization",
+      payload: dependencyPayload,
+      organizationId: parsedResult.data.organization_id,
+      uploadedBy: user.id
+    });
+    if (dependencyImageResult.status === "warning") imageWarnings.push(dependencyImageResult.message);
+  }
   if (payload && decision.data !== "reject" && decision.data !== "mark_not_duplicate") {
-    const parsedResult = reviewResultSchema.safeParse(reviewResult);
-    imageResult = await importReviewedCandidateImage({
+    const imageResult = await importReviewedCandidateImage({
       candidateId: candidateId.data,
       candidateAction: candidateRecord.action,
       payload,
@@ -412,6 +481,7 @@ export async function reviewContentCandidateAction(
       publicationId: parsedResult.success ? parsedResult.data.publication_id : null,
       uploadedBy: user.id
     });
+    if (imageResult.status === "warning") imageWarnings.push(imageResult.message);
   }
 
   revalidatePath("/");
@@ -426,8 +496,8 @@ export async function reviewContentCandidateAction(
       : decision.data === "approve_draft"
         ? "Кандидат сохранён как черновик."
         : "Кандидат одобрен.";
-  return actionSuccess(imageResult?.status === "warning"
-    ? `${message} Изображение не импортировано: ${imageResult.message}`
+  return actionSuccess(imageWarnings.length > 0
+    ? `${message} Изображение не импортировано: ${imageWarnings.join(" ")}`
     : message);
 }
 
@@ -491,6 +561,13 @@ export async function createContentSourceAction(
     return actionError(error instanceof Error ? error.message : "URL источника запрещён.");
   }
   const { supabase, user } = await getAdminContext();
+  const { data: exclusions, error: exclusionsError } = await supabase
+    .from("content_ingestion_domain_exclusions")
+    .select("domain");
+  if (exclusionsError) return actionError("Не получилось проверить исключённые домены.");
+  if (isUrlExcludedByDomain(canonicalUrl, (exclusions ?? []).map((item) => item.domain))) {
+    return actionError("Этот домен исключён из импорта. Сначала удалите его из списка исключений.");
+  }
   const { error } = await supabase.from("content_sources").insert({
     name: parsed.data.name,
     kind: parsed.data.kind,
@@ -502,6 +579,41 @@ export async function createContentSourceAction(
   if (error) return actionError(error.code === "23505" ? "Такой источник уже добавлен." : "Не получилось добавить источник.");
   revalidatePath("/admin/imports");
   return actionSuccess("Источник добавлен.");
+}
+
+export async function createContentIngestionDomainExclusionAction(
+  _state: ContentIngestionActionState,
+  formData: FormData
+): Promise<ContentIngestionActionState> {
+  let domain: string;
+  try {
+    domain = normalizeExcludedDomain(getString(formData, "domain"));
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Некорректный домен.");
+  }
+
+  const { supabase, user } = await getAdminContext();
+  const { error } = await supabase.from("content_ingestion_domain_exclusions").insert({
+    domain,
+    created_by: user.id
+  });
+  if (error) {
+    return actionError(error.code === "23505" ? "Этот домен уже исключён." : "Не получилось исключить домен.");
+  }
+  revalidatePath("/admin/imports");
+  return actionSuccess(`Импорт с ${domain} и его поддоменов остановлен.`);
+}
+
+export async function deleteContentIngestionDomainExclusionAction(formData: FormData) {
+  const exclusionId = postgresUuidSchema.safeParse(getString(formData, "exclusionId"));
+  if (!exclusionId.success) return;
+  const { supabase } = await getAdminContext();
+  const { error } = await supabase
+    .from("content_ingestion_domain_exclusions")
+    .delete()
+    .eq("id", exclusionId.data);
+  if (error) throw new Error("Не получилось снова разрешить импорт с домена.");
+  revalidatePath("/admin/imports");
 }
 
 export async function updateContentSourceAction(formData: FormData) {

@@ -159,6 +159,12 @@ export default async function AdminImportCandidatePage({ params }: AdminImportCa
               categories={options.publicationCategories}
               organizationTypes={options.organizationTypes}
               publications={options.publications}
+              dependencyOrganization={detail.dependency_candidate && detail.parsedDependencyOrganization ? {
+                id: detail.dependency_candidate.id,
+                status: detail.dependency_candidate.status,
+                payload: detail.parsedDependencyOrganization
+              } : null}
+              targetOrganizationId={detail.target_organization_id}
             />
           </CardContent>
         </Card>

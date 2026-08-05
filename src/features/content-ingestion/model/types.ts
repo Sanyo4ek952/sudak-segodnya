@@ -1,7 +1,8 @@
 import type { Tables } from "@/shared/api/supabase/database.types";
 import type {
   ContentCandidateEvidence,
-  ContentCandidatePayload
+  ContentCandidatePayload,
+  OrganizationCandidatePayload
 } from "@/features/content-ingestion/model/contracts";
 
 export const adminContentCandidateFilters = [
@@ -33,6 +34,7 @@ export const contentCandidateActionLabels = {
 } as const;
 
 export type ContentSourceRow = Tables<"content_sources">;
+export type ContentIngestionDomainExclusionRow = Tables<"content_ingestion_domain_exclusions">;
 export type ContentIngestionRunRow = Tables<"content_ingestion_runs">;
 export type ContentCandidateRow = Tables<"content_candidates">;
 
@@ -47,6 +49,7 @@ export type ContentCandidateDetail = ContentCandidateListItem & {
   duplicate_organization: Pick<Tables<"organizations">, "id" | "slug" | "name" | "status"> | null;
   dependency_candidate: Pick<ContentCandidateRow, "id" | "action" | "payload" | "status" | "result_organization_id"> | null;
   parsedPayload: ContentCandidatePayload;
+  parsedDependencyOrganization: OrganizationCandidatePayload | null;
   parsedEvidence: ContentCandidateEvidence[];
 };
 

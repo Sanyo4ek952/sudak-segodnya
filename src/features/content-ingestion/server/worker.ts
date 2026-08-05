@@ -15,6 +15,7 @@ import {
   createContentHash,
   sha256
 } from "@/features/content-ingestion/model/fingerprint";
+import { isUrlExcludedByDomain } from "@/features/content-ingestion/model/domain-exclusion";
 import {
   hasExplicitCancellationEvidence,
   isCandidateStale,
@@ -49,6 +50,21 @@ export type ProcessContentIngestionResult = {
 function safeErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "Неизвестная ошибка сбора.";
   return message.replace(/[\u0000-\u001f\u007f]+/g, " ").slice(0, 1000);
+}
+
+async function getExcludedDomains() {
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("content_ingestion_domain_exclusions")
+    .select("domain");
+  if (error) throw new Error("Не получилось проверить исключённые домены.");
+  return (data ?? []).map((item) => item.domain);
+}
+
+function assertDomainAllowed(url: string, excludedDomains: readonly string[]) {
+  if (isUrlExcludedByDomain(url, excludedDomains)) {
+    throw new Error("Домен источника исключён из импорта администратором.");
+  }
 }
 
 function normalizeName(value: string) {
@@ -519,6 +535,8 @@ export async function processContentIngestionRequest(request: ProcessRequest): P
     source = data;
   }
   const canonicalUrl = normalizeSourceUrl(source?.canonical_url ?? request.url ?? "");
+  const excludedDomains = await getExcludedDomains();
+  assertDomainAllowed(canonicalUrl, excludedDomains);
   const idempotencyKey = createRunKey(request, canonicalUrl);
   const { data: run, error: runError } = await admin.from("content_ingestion_runs").insert({
     source_id: source?.id ?? null,
@@ -538,6 +556,7 @@ export async function processContentIngestionRequest(request: ProcessRequest): P
       etag: source?.etag,
       lastModified: source?.last_modified
     });
+    assertDomainAllowed(fetched.finalUrl, excludedDomains);
     if (fetched.notModified) {
       const finishedAt = new Date().toISOString();
       await admin.from("content_ingestion_runs").update({ status: "succeeded", finished_at: finishedAt }).eq("id", run.id);
@@ -558,6 +577,7 @@ export async function processContentIngestionRequest(request: ProcessRequest): P
     const counters = { createdCount: 0, duplicateCount: 0, failedCount: 0 };
     let discoveredCount = 0;
     for (const batch of extraction.batches) {
+      assertDomainAllowed(batch.sourceUrl, excludedDomains);
       discoveredCount += batch.candidates.length;
       const batchCounters = await processExtractedCandidates({
         runId: run.id,
@@ -629,7 +649,12 @@ export async function runScheduledContentIngestion({
     : await admin.rpc("claim_due_content_sources", { p_limit: 5 });
   if (sourceResult.error) throw new Error("Не получилось получить список источников для запуска.");
 
-  const results = await Promise.all((sourceResult.data ?? []).map(async (source) => {
+  const excludedDomains = await getExcludedDomains();
+  const sources = (sourceResult.data ?? []).filter((source) =>
+    !isUrlExcludedByDomain(source.canonical_url, excludedDomains)
+  );
+
+  const results = await Promise.all(sources.map(async (source) => {
     try {
       const result = await processContentIngestionRequest({ sourceId: source.id, trigger, actorId });
       return { created: result.createdCount, failed: 0 };
@@ -639,5 +664,5 @@ export async function runScheduledContentIngestion({
   }));
   const created = results.reduce((total, result) => total + result.created, 0);
   const failed = results.reduce((total, result) => total + result.failed, 0);
-  return { processed: (sourceResult.data ?? []).length, created, failed };
+  return { processed: sources.length, created, failed };
 }
