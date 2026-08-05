@@ -258,6 +258,35 @@ export type Database = {
           { foreignKeyName: "content_candidates_target_publication_id_fkey"; columns: ["target_publication_id"]; isOneToOne: false; referencedRelation: "publications"; referencedColumns: ["id"] },
         ]
       }
+      content_ingestion_domain_exclusions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          domain: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          domain: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          domain?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_ingestion_domain_exclusions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_ingestion_runs: {
         Row: {
           created_at: string
@@ -1314,6 +1343,17 @@ export type Database = {
           p_candidate_id: string
           p_decision: Database["public"]["Enums"]["content_candidate_decision"]
           p_payload?: Json | null
+          p_review_comment?: string | null
+        }
+        Returns: Json
+      }
+      review_content_candidate_with_organization: {
+        Args: {
+          p_candidate_id: string
+          p_decision: Database["public"]["Enums"]["content_candidate_decision"]
+          p_organization_candidate_id: string
+          p_organization_payload: Json
+          p_payload: Json
           p_review_comment?: string | null
         }
         Returns: Json

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import {
+  createContentIngestionDomainExclusionAction,
   createContentSourceAction,
   enqueueManualUrlAction,
   runContentIngestionNowAction
@@ -51,6 +52,33 @@ export function CreateSourceForm() {
       </FormField>
       <div className="sm:col-span-2"><ContentIngestionActionMessage state={state} /></div>
       <div className="sm:col-span-2"><SubmitButton pendingLabel="Добавляем…">Добавить источник</SubmitButton></div>
+    </form>
+  );
+}
+
+export function DomainExclusionForm() {
+  const [state, action] = useActionState(
+    createContentIngestionDomainExclusionAction,
+    initialContentIngestionActionState
+  );
+  return (
+    <form action={action} className="space-y-3">
+      <FormField
+        id="excluded-source-domain"
+        label="Исключить домен"
+        hint="Импорт остановится также для всех поддоменов. Уже сохранённые данные останутся без изменений."
+      >
+        <Input
+          id="excluded-source-domain"
+          name="domain"
+          inputMode="url"
+          placeholder="example.org"
+          maxLength={253}
+          required
+        />
+      </FormField>
+      <ContentIngestionActionMessage state={state} />
+      <SubmitButton variant="outline" pendingLabel="Исключаем…">Исключить домен</SubmitButton>
     </form>
   );
 }
