@@ -157,6 +157,7 @@ export type Database = {
           id: string
           last_seen_at: string
           normalized_fingerprint: string
+          organization_identity_key: string | null
           payload: Json
           raw_expires_at: string
           result_organization_id: string | null
@@ -169,6 +170,7 @@ export type Database = {
           source_excerpt: string | null
           source_id: string | null
           source_url: string
+          source_version_hash: string | null
           status: Database["public"]["Enums"]["content_candidate_status"]
           target_organization_id: string | null
           target_publication_id: string | null
@@ -192,6 +194,7 @@ export type Database = {
           id?: string
           last_seen_at?: string
           normalized_fingerprint: string
+          organization_identity_key?: string | null
           payload: Json
           raw_expires_at?: string
           result_organization_id?: string | null
@@ -204,6 +207,7 @@ export type Database = {
           source_excerpt?: string | null
           source_id?: string | null
           source_url: string
+          source_version_hash?: string | null
           status?: Database["public"]["Enums"]["content_candidate_status"]
           target_organization_id?: string | null
           target_publication_id?: string | null
@@ -227,6 +231,7 @@ export type Database = {
           id?: string
           last_seen_at?: string
           normalized_fingerprint?: string
+          organization_identity_key?: string | null
           payload?: Json
           raw_expires_at?: string
           result_organization_id?: string | null
@@ -239,6 +244,7 @@ export type Database = {
           source_excerpt?: string | null
           source_id?: string | null
           source_url?: string
+          source_version_hash?: string | null
           status?: Database["public"]["Enums"]["content_candidate_status"]
           target_organization_id?: string | null
           target_publication_id?: string | null
@@ -289,13 +295,16 @@ export type Database = {
       }
       content_ingestion_runs: {
         Row: {
+          adapter_id: string | null
           created_at: string
           created_by: string | null
           created_count: number
           discovered_count: number
           duplicate_count: number
           error_message: string | null
+          extraction_format: string | null
           failed_count: number
+          final_url: string | null
           finished_at: string | null
           id: string
           idempotency_key: string
@@ -307,13 +316,16 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          adapter_id?: string | null
           created_at?: string
           created_by?: string | null
           created_count?: number
           discovered_count?: number
           duplicate_count?: number
           error_message?: string | null
+          extraction_format?: string | null
           failed_count?: number
+          final_url?: string | null
           finished_at?: string | null
           id?: string
           idempotency_key: string
@@ -325,13 +337,16 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          adapter_id?: string | null
           created_at?: string
           created_by?: string | null
           created_count?: number
           discovered_count?: number
           duplicate_count?: number
           error_message?: string | null
+          extraction_format?: string | null
           failed_count?: number
+          final_url?: string | null
           finished_at?: string | null
           id?: string
           idempotency_key?: string
@@ -348,11 +363,13 @@ export type Database = {
       }
       content_sources: {
         Row: {
+          adapter_id: string | null
           canonical_url: string
           consecutive_failures: number
           created_at: string
           created_by: string | null
           etag: string | null
+          extraction_format: string | null
           fetch_interval_minutes: number
           id: string
           is_active: boolean
@@ -362,6 +379,7 @@ export type Database = {
           last_error_at: string | null
           last_modified: string | null
           last_success_at: string | null
+          last_tested_at: string | null
           name: string
           next_check_at: string
           notes: string | null
@@ -371,11 +389,13 @@ export type Database = {
           url: string
         }
         Insert: {
+          adapter_id?: string | null
           canonical_url: string
           consecutive_failures?: number
           created_at?: string
           created_by?: string | null
           etag?: string | null
+          extraction_format?: string | null
           fetch_interval_minutes?: number
           id?: string
           is_active?: boolean
@@ -385,6 +405,7 @@ export type Database = {
           last_error_at?: string | null
           last_modified?: string | null
           last_success_at?: string | null
+          last_tested_at?: string | null
           name: string
           next_check_at?: string
           notes?: string | null
@@ -394,11 +415,13 @@ export type Database = {
           url: string
         }
         Update: {
+          adapter_id?: string | null
           canonical_url?: string
           consecutive_failures?: number
           created_at?: string
           created_by?: string | null
           etag?: string | null
+          extraction_format?: string | null
           fetch_interval_minutes?: number
           id?: string
           is_active?: boolean
@@ -408,6 +431,7 @@ export type Database = {
           last_error_at?: string | null
           last_modified?: string | null
           last_success_at?: string | null
+          last_tested_at?: string | null
           name?: string
           next_check_at?: string
           notes?: string | null
@@ -419,6 +443,171 @@ export type Database = {
         Relationships: [
           { foreignKeyName: "content_sources_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
         ]
+      }
+      external_items: {
+        Row: {
+          content_candidate_id: string | null
+          created_at: string
+          external_id: string
+          id: string
+          imported_at: string | null
+          media: Json
+          publication_id: string | null
+          published_at: string
+          raw_payload: Json
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_id: string
+          source_url: string
+          status: Database["public"]["Enums"]["external_item_status"]
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          content_candidate_id?: string | null
+          created_at?: string
+          external_id: string
+          id?: string
+          imported_at?: string | null
+          media?: Json
+          publication_id?: string | null
+          published_at: string
+          raw_payload: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_id: string
+          source_url: string
+          status?: Database["public"]["Enums"]["external_item_status"]
+          text?: string
+          updated_at?: string
+        }
+        Update: {
+          content_candidate_id?: string | null
+          created_at?: string
+          external_id?: string
+          id?: string
+          imported_at?: string | null
+          media?: Json
+          publication_id?: string | null
+          published_at?: string
+          raw_payload?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_id?: string
+          source_url?: string
+          status?: Database["public"]["Enums"]["external_item_status"]
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_items_content_candidate_id_fkey"
+            columns: ["content_candidate_id"]
+            isOneToOne: true
+            referencedRelation: "content_candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_items_publication_id_fkey"
+            columns: ["publication_id"]
+            isOneToOne: true
+            referencedRelation: "publications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_items_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "external_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_sources: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          domain: string
+          external_id: string | null
+          id: string
+          is_active: boolean
+          last_sync_error: string | null
+          last_synced_at: string | null
+          name: string
+          organization_id: string | null
+          platform: Database["public"]["Enums"]["external_platform"]
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          domain: string
+          external_id?: string | null
+          id?: string
+          is_active?: boolean
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          name: string
+          organization_id?: string | null
+          platform?: Database["public"]["Enums"]["external_platform"]
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          domain?: string
+          external_id?: string | null
+          id?: string
+          is_active?: boolean
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          name?: string
+          organization_id?: string | null
+          platform?: Database["public"]["Enums"]["external_platform"]
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_sources_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vk_manual_import_runs: {
+        Row: {
+          error: string | null
+          finished_at: string | null
+          id: string
+          requested_by: string
+          started_at: string
+          status: Database["public"]["Enums"]["vk_manual_import_run_status"]
+          summary: Json | null
+        }
+        Insert: {
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          requested_by: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["vk_manual_import_run_status"]
+          summary?: Json | null
+        }
+        Update: {
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          requested_by?: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["vk_manual_import_run_status"]
+          summary?: Json | null
+        }
+        Relationships: []
       }
       important_announcements: {
         Row: {
@@ -1247,6 +1436,19 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: Database["public"]["Tables"]["content_sources"]["Row"][]
       }
+      ignore_vk_external_item: {
+        Args: { p_item_id: string }
+        Returns: string
+      }
+      finish_vk_manual_import: {
+        Args: {
+          p_error?: string | null
+          p_run_id: string
+          p_status: Database["public"]["Enums"]["vk_manual_import_run_status"]
+          p_summary?: Json | null
+        }
+        Returns: undefined
+      }
       create_inaccuracy_report: {
         Args: {
           comment: string
@@ -1334,6 +1536,14 @@ export type Database = {
         Args: { admin_comment: string; application_id: string }
         Returns: Json
       }
+      prepare_vk_external_item_for_review: {
+        Args: { p_item_id: string }
+        Returns: string
+      }
+      start_vk_manual_import: {
+        Args: never
+        Returns: Json
+      }
       request_organization_application_changes: {
         Args: { admin_comment: string; application_id: string }
         Returns: Json
@@ -1344,6 +1554,16 @@ export type Database = {
           p_decision: Database["public"]["Enums"]["content_candidate_decision"]
           p_payload?: Json | null
           p_review_comment?: string | null
+        }
+        Returns: Json
+      }
+      review_content_candidate_guarded: {
+        Args: {
+          p_candidate_id: string
+          p_decision: Database["public"]["Enums"]["content_candidate_decision"]
+          p_expected_updated_at: string
+          p_payload: Json | null
+          p_review_comment: string | null
         }
         Returns: Json
       }
@@ -1358,6 +1578,19 @@ export type Database = {
         }
         Returns: Json
       }
+      review_content_candidate_with_organization_guarded: {
+        Args: {
+          p_candidate_id: string
+          p_decision: Database["public"]["Enums"]["content_candidate_decision"]
+          p_expected_updated_at: string
+          p_organization_candidate_id: string
+          p_organization_expected_updated_at: string
+          p_organization_payload: Json
+          p_payload: Json
+          p_review_comment: string | null
+        }
+        Returns: Json
+      }
       review_organization_type_change: {
         Args: {
           p_approve: boolean
@@ -1369,6 +1602,19 @@ export type Database = {
       revoke_organization_invitation: {
         Args: { p_invitation_id: string }
         Returns: undefined
+      }
+      save_content_candidate_draft: {
+        Args: {
+          p_candidate_id: string
+          p_dependency_candidate_id?: string | null
+          p_dependency_expected_updated_at?: string | null
+          p_dependency_payload?: Json | null
+          p_expected_updated_at: string
+          p_payload: Json
+          p_target_organization_id?: string | null
+          p_target_publication_id?: string | null
+        }
+        Returns: Json
       }
       save_admin_publication: {
         Args: {
@@ -1552,6 +1798,9 @@ export type Database = {
       content_ingestion_trigger: "cron" | "admin" | "agent"
       content_source_kind: "html" | "rss" | "manual"
       content_source_trust: "official" | "partner" | "discovery"
+      external_item_status: "new" | "imported" | "ignored" | "error"
+      external_platform: "vk"
+      vk_manual_import_run_status: "running" | "succeeded" | "partial" | "failed"
       important_announcement_status: "draft" | "active" | "expired" | "hidden"
       inaccuracy_report_reason:
         | "wrong_datetime"
@@ -1766,6 +2015,9 @@ export const Constants = {
       content_ingestion_trigger: ["cron", "admin", "agent"],
       content_source_kind: ["html", "rss", "manual"],
       content_source_trust: ["official", "partner", "discovery"],
+      external_item_status: ["new", "imported", "ignored", "error"],
+      external_platform: ["vk"],
+      vk_manual_import_run_status: ["running", "succeeded", "partial", "failed"],
       important_announcement_status: ["draft", "active", "expired", "hidden"],
       inaccuracy_report_reason: [
         "wrong_datetime",

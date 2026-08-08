@@ -122,6 +122,7 @@ function getPublicationRpcError(message: string) {
   const knownErrors: Array<[string, string]> = [
     ["Authentication required", "Войдите в аккаунт организации и повторите действие."],
     ["Active organization membership required", "Нет активного доступа к этой организации."],
+    ["Publication not found", "Публикация не найдена."],
     ["Publication does not belong", "Публикация не принадлежит выбранной организации."],
     ["Publication cannot be edited", "Эту публикацию нельзя редактировать в текущем статусе."],
     ["Active publication category not found", "Выбранная категория ленты недоступна."],
@@ -1266,8 +1267,10 @@ export async function updateOrganizationProfileAction(
   );
 }
 
-export async function savePublicationAction(
-  _state: BusinessActionState,
+type PublicationSaveMode = "business" | "admin";
+
+async function savePublicationForMode(
+  mode: PublicationSaveMode,
   formData: FormData
 ): Promise<BusinessActionState> {
   const rawIntent = getString(formData, "intent");
@@ -1288,8 +1291,9 @@ export async function savePublicationAction(
       : actionError("Сначала сохраните черновик публикации.");
   }
 
-  const image = rawIntent === "upload-image" ? getPublicationImage(formData) : null;
-  const imageValidationError = rawIntent === "upload-image"
+  const image = getPublicationImage(formData);
+  const shouldUploadImage = rawIntent === "upload-image" || Boolean(image);
+  const imageValidationError = shouldUploadImage
     ? validatePublicationImage(image)
     : null;
 
@@ -1358,8 +1362,7 @@ export async function savePublicationAction(
     p_type: parsed.data.type,
     p_valid_until: toOptionalText(parsed.data.validUntil)
   };
-  const { data: isAdmin } = await supabase.rpc("is_admin");
-  const { data: publication, error } = isAdmin
+  const { data: publication, error } = mode === "admin"
     ? await supabase.rpc("save_admin_publication", {
         ...rpcArguments,
         p_publication_id: parsed.data.publicationId
@@ -1373,7 +1376,9 @@ export async function savePublicationAction(
     ? `/publications/${publication.slug}`
     : undefined;
 
-  if (rawIntent === "upload-image" && image) {
+  let uploadedImageUrl: string | undefined;
+
+  if (image) {
     const imageResult = await replacePublicationImage(supabase, publication.id, image);
 
     if (imageResult.error) {
@@ -1383,6 +1388,10 @@ export async function savePublicationAction(
       };
     }
 
+    uploadedImageUrl = imageResult.imageUrl;
+  }
+
+  if (rawIntent === "upload-image" && image) {
     revalidatePath(`/business/${parsed.data.organizationId}/publications/${publication.id}`);
     revalidatePath(`/admin/publications/${publication.id}`);
     revalidatePath("/admin/publications");
@@ -1391,7 +1400,7 @@ export async function savePublicationAction(
       ...actionSuccess("Изображение загружено. Введённые данные сохранены."),
       publicationId: publication.id,
       ...(publicationHref ? { publicationHref } : {}),
-      imageUrl: imageResult.imageUrl
+      imageUrl: uploadedImageUrl
     };
   }
 
@@ -1400,7 +1409,7 @@ export async function savePublicationAction(
   revalidatePath(`/admin/publications/${publication.id}`);
   revalidatePath("/admin/publications");
   revalidatePath("/");
-  const message = isAdmin
+  const message = mode === "admin"
     ? "Изменения публикации сохранены."
     : parsed.data.intent === "draft"
     ? "Черновик сохранён."
@@ -1411,8 +1420,52 @@ export async function savePublicationAction(
   return {
     ...actionSuccess(message),
     publicationId: publication.id,
-    ...(publicationHref ? { publicationHref } : {})
+    ...(publicationHref ? { publicationHref } : {}),
+    ...(uploadedImageUrl ? { imageUrl: uploadedImageUrl } : {})
   };
+}
+
+export async function saveBusinessPublicationAction(
+  _state: BusinessActionState,
+  formData: FormData
+): Promise<BusinessActionState> {
+  const organizationId = getString(formData, "organizationId");
+
+  if (!uuidSchema.safeParse(organizationId).success) {
+    return actionError("Организация не найдена.");
+  }
+
+  if (!(await assertBusinessMembership(organizationId))) {
+    return actionError("Нет доступа к этой организации.");
+  }
+
+  return savePublicationForMode("business", formData);
+}
+
+export async function saveAdminPublicationAction(
+  _state: BusinessActionState,
+  formData: FormData
+): Promise<BusinessActionState> {
+  const identifiers = z.object({
+    organizationId: uuidSchema,
+    publicationId: uuidSchema
+  }).safeParse({
+    organizationId: getString(formData, "organizationId"),
+    publicationId: getString(formData, "publicationId")
+  });
+
+  if (!identifiers.success) {
+    return actionError("Публикация не найдена.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+
+  if (!isAdmin) {
+    return actionError("Требуются права администратора.");
+  }
+
+  return savePublicationForMode("admin", formData);
 }
 
 export async function changePublicationStatusAction(formData: FormData) {

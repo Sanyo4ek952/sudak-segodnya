@@ -50,6 +50,7 @@ describe("official content source adapters", () => {
       expect(candidate.payload.type).toBe("event");
       expect(candidate.payload.startsAt).toBe("2026-08-07T00:00:00+03:00");
       expect(candidate.payload.endsAt).toBe("2026-08-09T23:59:59+03:00");
+      expect(candidate.payload.sourcePublishedAt).toBe("2026-03-04T00:00:00+03:00");
       expect(candidate.payload.imageSourceUrl).toBe("https://tavrida.art/images/detail.webp");
     }
   });

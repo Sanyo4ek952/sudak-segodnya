@@ -92,6 +92,19 @@ describe("content ingestion contracts", () => {
       evidence: [{ field: "startsAt", excerpt: "14 августа", sourceUrl: "https://example.com" }],
       warnings: []
     }).success).toBe(false);
+    expect(extractedCandidateSchema.safeParse({
+      action: "create_publication",
+      externalId: "news-1",
+      payload: {
+        ...eventPayload,
+        type: "news",
+        startsAt: null,
+        endsAt: null,
+        sourcePublishedAt: "2026-08-14T13:00:00+04:00"
+      },
+      evidence: [{ field: "title", excerpt: "Новость", sourceUrl: "https://example.com" }],
+      warnings: []
+    }).success).toBe(false);
   });
 
   it("requires exactly one manual ingestion target", () => {

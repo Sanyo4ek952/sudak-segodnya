@@ -208,6 +208,81 @@ Enums:
 История создаётся серверными операциями и триггерами для заявок, модерации,
 организаций, публикаций, приглашений, ролей и передачи ownership.
 
+### content_sources
+
+Назначение: административные настройки регулярных внешних источников.
+
+Поля: `name`, `kind`, `url`, `canonical_url`, `organization_id`, `trust_level`,
+`is_active`, `fetch_interval_minutes`, `adapter_id`, `extraction_format`,
+`last_tested_at`, ETag/Last-Modified, даты успеха/ошибки и диагностические поля.
+
+`organization_id` задаётся только для сайта одной организации. Агрегатор не должен
+иметь организацию по умолчанию.
+
+### content_ingestion_runs
+
+Назначение: история разовых, плановых и агентских запусков.
+
+Хранит trigger/status, idempotency key, счётчики, ошибку, итоговый URL,
+`adapter_id` и `extraction_format`.
+
+### content_candidates
+
+Назначение: закрытая очередь нормализованных материалов до решения администратора.
+
+Хранит action/status, JSON payload, доказательства, предупреждения, исходный URL,
+технический hash/fingerprint, отдельный `source_version_hash`, связи дублей,
+зависимость от кандидата организации, целевые и результирующие сущности, решение и
+audit metadata. Версия источника не меняется при ручной корректировке payload и
+позволяет отличить повтор от следующего обновления.
+
+Не найденная автоматически цель обновления или отмены допустима в закрытом
+кандидате, но обязательна перед `approved`. Правки pending/duplicate-кандидата
+сохраняются через `save_content_candidate_draft` с проверкой `updated_at`.
+
+### content_ingestion_domain_exclusions
+
+Назначение: обратимый запрет импорта с домена и всех его поддоменов.
+
+### external_sources
+
+Назначение: allowlist VK-сообществ для Edge Function `vk-import`.
+
+Поля: `platform`, `external_id`, `domain`, `name`, `url`, nullable
+`organization_id`, `is_active`, `last_synced_at`, `last_sync_error`,
+`created_by`, timestamps. MVP допускает только `platform = vk`. Domain уникален
+без учёта регистра; известный VK owner id также уникален. Источник не удаляется
+при наличии provenance — его приостанавливают через `is_active`.
+
+### external_items
+
+Назначение: закрытая VK-очередь до административного решения.
+
+Поля: `source_id`, VK `external_id`, `source_url`, `text`, `published_at`,
+`media`, `raw_payload`, `status`, nullable `content_candidate_id` и
+`publication_id`, даты импорта/решения и `reviewed_by`. Статусы: `new`,
+`imported`, `ignored`, `error`.
+
+Unique `(source_id, external_id)` не допускает второй строки для повторного
+`wall.get`; отдельные unique indexes запрещают привязать один candidate или
+publication к нескольким VK items. `prepare_vk_external_item_for_review()`
+идемпотентно создаёт существующий `content_candidates`, а trigger после guarded
+review атомарно переносит `result_publication_id` и terminal status обратно в
+`external_items`.
+
+### vk_manual_import_runs
+
+Назначение: журнал ручных запусков VK и серверная граница частоты.
+
+Поля: `status`, `requested_by`, `started_at`, `finished_at`, `summary`, `error`.
+Статусы: `running`, `succeeded`, `partial`, `failed`. Таблицу читают только
+администраторы; прямые insert/update клиентским ролям запрещены.
+
+`start_vk_manual_import()` использует transaction advisory lock и отклоняет
+повторный или параллельный запуск, если с последнего `started_at` не прошло 24
+часа. `finish_vk_manual_import()` разрешает завершить run только тому
+администратору, который его запросил.
+
 ## 4. RLS на уровне продукта
 
 Helper-функции:
@@ -255,6 +330,9 @@ Helper-функции:
 - админские изменения публикаций и организаций выполняются через
   `admin_moderate_publication` и `admin_moderate_organization` с обязательной
   причиной и записью `audit_events`.
+- читает и настраивает `external_sources`, читает `external_items`; Ignore и
+  подготовка VK-prefill выполняются только admin RPC. Anon и обычный
+  authenticated пользователь не получают table access.
 
 Storage:
 

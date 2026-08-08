@@ -7,6 +7,7 @@ import {
   parseJsonLdCandidateBatches,
   parseRssCandidateBatches,
   toMoscowOffsetIso,
+  toMoscowSourcePublishedAt,
   type SourceCandidateBatch,
   type SourceProfile
 } from "@/features/content-ingestion/server/source-parsers";
@@ -292,7 +293,10 @@ const cultureAdapter: SourceAdapter = {
     && (url.pathname.startsWith("/afisha/") || url.pathname.startsWith("/events/")),
   async extract(input, profile) {
     const direct = cultureDetailBatches(input.fetched, profile);
-    if (direct.length > 0) return direct;
+    const hasDirectPublication = direct.some((batch) => (
+      batch.candidates.some((candidate) => candidate.payload.kind === "publication")
+    ));
+    if (hasDirectPublication) return direct;
     const links = uniqueDetailLinks(input.fetched.body, input.fetched.finalUrl, /^\/events\/\d+\//, 12);
     return fetchDetailBatches(links, profile, input.fetchDetail, cultureDetailBatches);
   }
@@ -317,6 +321,7 @@ function tavridaCardBatches(fetched: SafeFetchResult, profile: SourceProfile) {
       type: "news",
       title,
       description,
+      sourcePublishedAt: toMoscowSourcePublishedAt(published),
       imageSourceUrl: imageFromHtml(body, sourceUrl),
       warnings: [
         "Материал подготовлен адаптером официального сайта Тавриды и оставлен в закрытой очереди.",
@@ -382,6 +387,7 @@ function tavridaDetailBatches(fetched: SafeFetchResult, profile: SourceProfile) 
     type: isEvent ? "event" : "news",
     title,
     description,
+    sourcePublishedAt: toMoscowSourcePublishedAt(published),
     startsAt: isEvent ? eventInterval?.startsAt : null,
     endsAt: isEvent ? eventInterval?.endsAt : null,
     priceText,
@@ -573,6 +579,7 @@ function unknownHtmlBatch(fetched: SafeFetchResult, profile: SourceProfile) {
     type: isEvent ? "event" : "news",
     title,
     description,
+    sourcePublishedAt: toMoscowSourcePublishedAt(published),
     startsAt: isEvent ? eventInterval?.startsAt : null,
     endsAt: isEvent ? eventInterval?.endsAt : null,
     imageSourceUrl: imageFromHtml(fetched.body, fetched.finalUrl),

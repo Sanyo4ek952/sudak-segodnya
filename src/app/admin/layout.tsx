@@ -9,6 +9,7 @@ const adminNavigationItems = [
   { label: "Обзор", href: "/admin", exact: true },
   { label: "Заявки организаций", href: "/admin/applications" },
   { label: "Импорт", href: "/admin/imports" },
+  { label: "VK", href: "/admin/vk" },
   { label: "Публикации", href: "/admin/publications" },
   { label: "Организации", href: "/admin/organizations" },
   { label: "Неточности", href: "/admin/reports" },

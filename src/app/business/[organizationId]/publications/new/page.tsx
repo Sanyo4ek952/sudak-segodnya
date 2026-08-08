@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import {
   getBusinessOrganization,
-  getPublicationCategories
+  getPublicationCategories,
+  saveBusinessPublicationAction
 } from "@/features/business-cabinet/model/actions";
 import { PublicationForm } from "@/features/business-cabinet/ui/publication-form";
 import { Card, CardContent } from "@/shared/ui/card";
@@ -36,6 +37,7 @@ export default async function NewPublicationPage({ params }: NewPublicationPageP
             categories={categories}
             draftPublicationId={randomUUID()}
             clientRequestId={randomUUID()}
+            saveAction={saveBusinessPublicationAction}
           />
         </CardContent>
       </Card>

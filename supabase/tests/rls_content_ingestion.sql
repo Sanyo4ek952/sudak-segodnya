@@ -2,7 +2,7 @@ begin;
 
 set search_path = public, extensions;
 
-select plan(32);
+select plan(37);
 
 create or replace function pg_temp.statement_raises(statement text)
 returns boolean
@@ -311,7 +311,8 @@ values
       'categorySlug', 'ingestion-tests',
       'startsAt', null,
       'endsAt', null,
-      'validUntil', (now() + interval '40 days')::text,
+      'validUntil', (now() + interval '7 days')::text,
+      'sourcePublishedAt', now()::text,
       'place', null,
       'priceText', null,
       'isFree', false,
@@ -381,7 +382,8 @@ insert into public.content_candidates (
 )
 select
   '52800000-0000-0000-0000-000000000008', source_id, run_id, action, 'pending',
-  payload, '[]'::jsonb, warnings, 'https://example.test/no-evidence', source_checked_at,
+  jsonb_set(payload, '{name}', to_jsonb('Imported Organization Without Evidence'::text)),
+  '[]'::jsonb, warnings, 'https://example.test/no-evidence', source_checked_at,
   'hash-no-evidence', 'fingerprint-no-evidence'
 from public.content_candidates
 where id = '52800000-0000-0000-0000-000000000001';
@@ -696,6 +698,201 @@ select lives_ok(
     'Applicant identity verified'
   ) $$,
   'repeated application linking is idempotent'
+);
+
+select is(
+  public.normalize_import_organization_name('  АРТ-КЛАСТЕР «ТАВРИДА»  '),
+  public.normalize_import_organization_name('Арт кластер Таврида'),
+  'organization identity normalization is stable'
+);
+
+reset role;
+
+insert into public.content_candidates (
+  id, action, status, payload, evidence, warnings, source_url,
+  content_hash, normalized_fingerprint
+)
+values (
+  '52800000-0000-0000-0000-000000000013',
+  'create_organization',
+  'pending',
+  jsonb_build_object(
+    'kind', 'organization',
+    'name', 'Canonical Import Organization',
+    'typeSlug', 'ingestion-tests',
+    'description', 'Canonical organization candidate description',
+    'address', null,
+    'phone', '+7 978 100-00-00',
+    'workingHours', null,
+    'contactLinks', '[]'::jsonb,
+    'imageSourceUrl', null
+  ),
+  jsonb_build_array(jsonb_build_object(
+    'field', 'name', 'excerpt', 'Canonical Import Organization',
+    'sourceUrl', 'https://example.test/canonical-organization'
+  )),
+  '[]'::jsonb,
+  'https://example.test/canonical-organization',
+  'hash-canonical-organization',
+  'fingerprint-canonical-organization'
+);
+
+select ok(
+  pg_temp.statement_raises($$ insert into public.content_candidates (
+    id, action, status, payload, evidence, warnings, source_url,
+    content_hash, normalized_fingerprint
+  ) values (
+    '52800000-0000-0000-0000-000000000014',
+    'create_organization',
+    'pending',
+    jsonb_build_object(
+      'kind', 'organization', 'name', ' canonical-import organization ',
+      'typeSlug', 'ingestion-tests', 'description', null, 'address', null,
+      'phone', null, 'workingHours', null, 'contactLinks', '[]'::jsonb,
+      'imageSourceUrl', null
+    ),
+    '[]'::jsonb, '[]'::jsonb,
+    'https://example.test/canonical-organization-copy',
+    'hash-canonical-organization-copy',
+    'fingerprint-canonical-organization-copy'
+  ) $$),
+  'only one pending organization candidate can use a normalized identity'
+);
+
+insert into public.content_candidates (
+  id, action, status, payload, evidence, warnings, source_url,
+  content_hash, normalized_fingerprint
+)
+values (
+  '52800000-0000-0000-0000-000000000015',
+  'create_organization',
+  'pending',
+  jsonb_build_object(
+    'kind', 'organization',
+    'name', 'Ingestion Existing Organization',
+    'typeSlug', 'ingestion-tests',
+    'description', 'Attempt to recreate an active organization',
+    'address', null,
+    'phone', '+7 978 200-00-00',
+    'workingHours', null,
+    'contactLinks', '[]'::jsonb,
+    'imageSourceUrl', null
+  ),
+  jsonb_build_array(jsonb_build_object(
+    'field', 'name', 'excerpt', 'Ingestion Existing Organization',
+    'sourceUrl', 'https://example.test/existing-organization-copy'
+  )),
+  '[]'::jsonb,
+  'https://example.test/existing-organization-copy',
+  'hash-existing-organization-copy',
+  'fingerprint-existing-organization-copy'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000082', true);
+
+select ok(
+  pg_temp.statement_raises($$ select public.review_content_candidate(
+    '52800000-0000-0000-0000-000000000015', 'approve_publish', null, null
+  ) $$),
+  'organization review rechecks active normalized names under its transaction lock'
+);
+
+reset role;
+
+insert into public.content_candidates (
+  id, action, status, payload, evidence, warnings, source_url,
+  content_hash, normalized_fingerprint, target_organization_id
+)
+values
+(
+  '52800000-0000-0000-0000-000000000016',
+  'create_publication',
+  'pending',
+  jsonb_build_object(
+    'kind', 'publication',
+    'organizationId', '41800000-0000-0000-0000-000000000001',
+    'organizationName', 'Ingestion Existing Organization',
+    'targetPublicationId', null,
+    'type', 'event',
+    'title', 'Already ended imported event',
+    'description', 'Complete description of an imported event that already ended',
+    'categorySlug', 'ingestion-tests',
+    'startsAt', (now() - interval '2 days')::text,
+    'endsAt', (now() - interval '1 day')::text,
+    'validUntil', null,
+    'sourcePublishedAt', (now() - interval '3 days')::text,
+    'place', 'Sudak',
+    'priceText', 'Free',
+    'isFree', true,
+    'ageLimit', null,
+    'contactPhone', null,
+    'scheduleEntries', '[]'::jsonb,
+    'imageSourceUrl', null
+  ),
+  jsonb_build_array(jsonb_build_object(
+    'field', 'dates', 'excerpt', 'Event already ended',
+    'sourceUrl', 'https://example.test/ended-event'
+  )),
+  '[]'::jsonb,
+  'https://example.test/ended-event',
+  'hash-ended-event',
+  'fingerprint-ended-event',
+  '41800000-0000-0000-0000-000000000001'
+),
+(
+  '52800000-0000-0000-0000-000000000017',
+  'create_publication',
+  'pending',
+  jsonb_build_object(
+    'kind', 'publication',
+    'organizationId', '41800000-0000-0000-0000-000000000001',
+    'organizationName', 'Ingestion Existing Organization',
+    'targetPublicationId', null,
+    'type', 'news',
+    'title', 'Imported news without source date',
+    'description', 'Complete imported news description without a reliable source date',
+    'categorySlug', 'ingestion-tests',
+    'startsAt', null,
+    'endsAt', null,
+    'validUntil', (now() + interval '7 days')::text,
+    'sourcePublishedAt', null,
+    'place', null,
+    'priceText', null,
+    'isFree', false,
+    'ageLimit', null,
+    'contactPhone', null,
+    'scheduleEntries', '[]'::jsonb,
+    'imageSourceUrl', null
+  ),
+  jsonb_build_array(jsonb_build_object(
+    'field', 'title', 'excerpt', 'Imported news without source date',
+    'sourceUrl', 'https://example.test/undated-news'
+  )),
+  '[]'::jsonb,
+  'https://example.test/undated-news',
+  'hash-undated-news',
+  'fingerprint-undated-news',
+  '41800000-0000-0000-0000-000000000001'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000082', true);
+
+select ok(
+  pg_temp.statement_raises($$ select public.review_content_candidate(
+    '52800000-0000-0000-0000-000000000016', 'approve_publish', null, null
+  ) $$),
+  'SQL review rejects an imported event whose end is not in the future'
+);
+
+select ok(
+  pg_temp.statement_raises($$ select public.review_content_candidate(
+    '52800000-0000-0000-0000-000000000017', 'approve_publish', null, null
+  ) $$),
+  'SQL review rejects imported news without a reliable source publication date'
 );
 
 reset role;
