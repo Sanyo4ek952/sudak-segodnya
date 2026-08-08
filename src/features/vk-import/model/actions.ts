@@ -6,6 +6,7 @@ import { z } from "zod";
 import { invokeVkImport } from "@/features/vk-import/server/sync";
 import {
   getVkImportAvailability,
+  normalizeVkDomain,
   type VkExternalItemStatus,
   type VkImportAvailability,
   type VkImportActionState
@@ -51,23 +52,6 @@ function actionSuccess(message: string): VkImportActionState {
 
 function formatMoscowDateTime(value: string) {
   return moscowDateTimeFormatter.format(new Date(value));
-}
-
-function normalizeVkDomain(rawValue: string) {
-  let value = rawValue.trim();
-  if (/^https?:\/\//i.test(value)) {
-    try {
-      const url = new URL(value);
-      if (!["vk.com", "www.vk.com"].includes(url.hostname.toLowerCase())) return null;
-      const parts = url.pathname.split("/").filter(Boolean);
-      if (parts.length !== 1 || url.search || url.hash) return null;
-      value = parts[0];
-    } catch {
-      return null;
-    }
-  }
-  value = value.replace(/^@/, "").toLowerCase();
-  return /^[a-z0-9_.-]{2,100}$/.test(value) ? value : null;
 }
 
 async function getAdminContext() {
