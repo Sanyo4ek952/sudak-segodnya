@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await processContentIngestionRequest({ ...parsed.data, trigger: "agent" });
-    return NextResponse.json(result, { status: 202, headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json(result, { status: 200, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return NextResponse.json({
       error: error instanceof Error ? error.message.slice(0, 300) : "Content ingestion failed"

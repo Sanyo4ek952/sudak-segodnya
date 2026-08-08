@@ -196,7 +196,7 @@ function intervalResult({
 export function extractRussianEventInterval(value: string, fallbackYear?: number | null) {
   const normalized = value.normalize("NFKC").replace(/\u00a0/g, " ");
   const crossMonth = new RegExp(
-    `\\b(?:с\\s+)?(\\d{1,2})\\s+(${russianMonthPattern})(?:\\s+(20\\d{2})(?:\\s*(?:года?|г\\.))?)?\\s+(?:по|до|[-–—])\\s+(\\d{1,2})\\s+(${russianMonthPattern})(?:\\s+(20\\d{2})(?:\\s*(?:года?|г\\.))?)?`,
+    `(?:с\\s+)?(\\d{1,2})\\s+(${russianMonthPattern})(?:\\s+(20\\d{2})(?:\\s*(?:года?|г\\.))?)?\\s+(?:по|до|[-–—])\\s+(\\d{1,2})\\s+(${russianMonthPattern})(?:\\s+(20\\d{2})(?:\\s*(?:года?|г\\.))?)?`,
     "i"
   ).exec(normalized);
   if (crossMonth?.[1] && crossMonth[2] && crossMonth[4] && crossMonth[5]) {
@@ -222,7 +222,7 @@ export function extractRussianEventInterval(value: string, fallbackYear?: number
   }
 
   const sameMonth = new RegExp(
-    `\\b(?:с\\s+)?(\\d{1,2})\\s*(?:по|до|[-–—])\\s*(\\d{1,2})\\s+(${russianMonthPattern})(?:\\s+(20\\d{2})(?:\\s*(?:года?|г\\.))?)?`,
+    `(?:с\\s+)?(\\d{1,2})\\s*(?:по|до|[-–—])\\s*(\\d{1,2})\\s+(${russianMonthPattern})(?:\\s+(20\\d{2})(?:\\s*(?:года?|г\\.))?)?`,
     "i"
   ).exec(normalized);
   if (sameMonth?.[1] && sameMonth[2] && sameMonth[3]) {

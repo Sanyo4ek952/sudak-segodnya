@@ -21,6 +21,13 @@ import {
   isCandidateStale,
   selectOrganizationEvidence
 } from "@/features/content-ingestion/model/candidate-rules";
+import {
+  applyOrganizationDefaults,
+  normalizeOrganizationName,
+  resolveImportOrganization,
+  type ImportOrganization
+} from "@/features/content-ingestion/model/organization-resolution";
+import { resolvePublicationFollowup } from "@/features/content-ingestion/model/publication-followup";
 import { extractSourceCandidates } from "@/features/content-ingestion/server/official-source-adapters";
 import {
   fetchPublicSource,
@@ -45,6 +52,8 @@ export type ProcessContentIngestionResult = {
   duplicateCount: number;
   failedCount: number;
   notModified: boolean;
+  adapterId: string | null;
+  extractionFormat: "rss" | "json_ld" | "adapter" | "unknown" | null;
 };
 
 function safeErrorMessage(error: unknown) {
@@ -65,16 +74,6 @@ function assertDomainAllowed(url: string, excludedDomains: readonly string[]) {
   if (isUrlExcludedByDomain(url, excludedDomains)) {
     throw new Error("Домен источника исключён из импорта администратором.");
   }
-}
-
-function normalizeName(value: string) {
-  return value
-    .normalize("NFKC")
-    .toLocaleLowerCase("ru-RU")
-    .replace(/ё/g, "е")
-    .replace(/[^a-zа-я0-9]+/gi, " ")
-    .trim()
-    .replace(/\s+/g, " ");
 }
 
 function categoryToOrganizationType(categorySlug: string) {
@@ -115,16 +114,12 @@ function verifyEvidence(
 
 async function findOrganizationMatches(
   organizationName: string,
-  organizations: Array<Pick<Tables<"organizations">, "id" | "name">>
+  organizations: ImportOrganization[]
 ) {
-  const target = normalizeName(organizationName);
-  const exact = organizations.filter((organization) => normalizeName(organization.name) === target);
-  if (exact.length > 0) return exact;
-  if (target.length < 5) return [];
-  return organizations.filter((organization) => {
-    const candidate = normalizeName(organization.name);
-    return candidate.includes(target) || target.includes(candidate);
-  });
+  const target = normalizeOrganizationName(organizationName);
+  return organizations.filter(
+    (organization) => normalizeOrganizationName(organization.name) === target
+  );
 }
 
 async function findCrossSourceDuplicate(
@@ -153,10 +148,10 @@ async function findSameSourceCandidate(
   const admin = createSupabaseAdminClient();
   let identityQuery = admin
     .from("content_candidates")
-    .select("id, status, content_hash")
+    .select("id, status, content_hash, source_version_hash")
     .eq("source_url", sourceUrl)
     .eq("action", action)
-    .in("status", ["pending", "approved", "duplicate", "stale"])
+    .in("status", ["pending", "duplicate", "stale"])
     .order("created_at", { ascending: false })
     .limit(1);
   identityQuery = externalId
@@ -167,15 +162,37 @@ async function findSameSourceCandidate(
 
   const { data: fingerprintMatch } = await admin
     .from("content_candidates")
-    .select("id, status, content_hash")
+    .select("id, status, content_hash, source_version_hash")
     .eq("normalized_fingerprint", fingerprint)
     .eq("source_url", sourceUrl)
     .eq("action", action)
-    .in("status", ["pending", "approved", "duplicate", "stale"])
+    .in("status", ["pending", "duplicate", "stale"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   return fingerprintMatch ?? null;
+}
+
+async function findLatestApprovedPublicationCandidate(
+  sourceUrl: string,
+  externalId: string | null
+) {
+  const admin = createSupabaseAdminClient();
+  let query = admin
+    .from("content_candidates")
+    .select("id, action, source_version_hash, result_publication_id, target_organization_id")
+    .eq("source_url", sourceUrl)
+    .eq("status", "approved")
+    .in("action", ["create_publication", "update_publication", "cancel_publication"])
+    .not("result_publication_id", "is", null)
+    .order("reviewed_at", { ascending: false })
+    .limit(1);
+  query = externalId
+    ? query.eq("external_id", externalId)
+    : query.is("external_id", null);
+  const { data, error } = await query.maybeSingle();
+  if (error) throw new Error("Не получилось проверить историю импортированной публикации.");
+  return data;
 }
 
 async function findPublicationDuplicate(payload: PublicationCandidatePayload) {
@@ -206,8 +223,10 @@ async function findTargetPublication(payload: PublicationCandidatePayload) {
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) throw new Error("Не получилось сопоставить целевую публикацию.");
-  const normalizedTitle = normalizeName(payload.title);
-  let matches = (data ?? []).filter((publication) => normalizeName(publication.title) === normalizedTitle);
+  const normalizedTitle = normalizeOrganizationName(payload.title);
+  let matches = (data ?? []).filter((publication) => (
+    normalizeOrganizationName(publication.title) === normalizedTitle
+  ));
   const targetDate = payload.startsAt ?? payload.validUntil;
   if (matches.length > 1 && targetDate) {
     const targetTime = Date.parse(targetDate);
@@ -233,6 +252,7 @@ async function insertCandidate({
   warnings,
   sourceExcerpt,
   dependsOnCandidateId,
+  sourceVersionHash,
   status
 }: {
   runId: string;
@@ -245,10 +265,12 @@ async function insertCandidate({
   warnings: string[];
   sourceExcerpt: string;
   dependsOnCandidateId?: string | null;
+  sourceVersionHash?: string;
   status?: "pending" | "duplicate" | "stale" | "failed";
 }) {
   const admin = createSupabaseAdminClient();
   const contentHash = createContentHash({ action: candidate.action, payload, evidence });
+  const stableSourceVersionHash = sourceVersionHash ?? contentHash;
   const fingerprint = createContentFingerprint(payload);
   const sameSourceCandidate = await findSameSourceCandidate(
     fingerprint,
@@ -260,7 +282,10 @@ async function insertCandidate({
     const refreshable = sameSourceCandidate.status === "pending"
       || sameSourceCandidate.status === "duplicate"
       || sameSourceCandidate.status === "stale";
-    const refreshPayload = refreshable && sameSourceCandidate.content_hash !== contentHash;
+    const refreshPayload = refreshable && (
+      sameSourceCandidate.content_hash !== contentHash
+      || sameSourceCandidate.source_version_hash !== stableSourceVersionHash
+    );
     const { error } = await admin.from("content_candidates").update(refreshPayload ? {
       payload,
       evidence,
@@ -272,6 +297,7 @@ async function insertCandidate({
       target_organization_id: payload.kind === "publication" ? payload.organizationId : null,
       target_publication_id: payload.kind === "publication" ? payload.targetPublicationId : null,
       source_excerpt: sourceExcerpt,
+      source_version_hash: stableSourceVersionHash,
       raw_expires_at: new Date(Date.parse(sourceCheckedAt) + 30 * 24 * 60 * 60 * 1000).toISOString(),
       last_seen_at: sourceCheckedAt
     } : {
@@ -298,6 +324,7 @@ async function insertCandidate({
     source_checked_at: sourceCheckedAt,
     external_id: candidate.externalId,
     content_hash: contentHash,
+    source_version_hash: stableSourceVersionHash,
     normalized_fingerprint: fingerprint,
     duplicate_of_id: duplicateCandidateId,
     duplicate_publication_id: duplicatePublicationId,
@@ -307,13 +334,16 @@ async function insertCandidate({
   }).select("id, status").single();
 
   if (error?.code === "23505") {
-    const { data: existing } = await admin
+    let existingQuery = admin
       .from("content_candidates")
       .select("id, status")
       .eq("source_url", sourceUrl)
       .eq("content_hash", contentHash)
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+    existingQuery = candidate.externalId
+      ? existingQuery.eq("external_id", candidate.externalId)
+      : existingQuery.is("external_id", null);
+    const { data: existing } = await existingQuery.maybeSingle();
     if (existing) {
       await admin.from("content_candidates").update({ last_seen_at: sourceCheckedAt }).eq("id", existing.id);
     }
@@ -392,7 +422,7 @@ async function processExtractedCandidates({
   const admin = createSupabaseAdminClient();
   const { data: organizations, error } = await admin
     .from("organizations")
-    .select("id, name")
+    .select("id, name, address, phone")
     .eq("status", "active");
   if (error) throw new Error("Не получилось сопоставить организации.");
 
@@ -401,11 +431,17 @@ async function processExtractedCandidates({
   let failedCount = 0;
   const sourceExcerpt = compactExcerpt(sourceText);
   const pendingOrganizations = new Map<string, string>();
+  const activeOrganizations = (organizations ?? []) as ImportOrganization[];
 
   for (const extracted of candidates.filter((item) => item.payload.kind === "organization")) {
     try {
       const payload = extracted.payload as OrganizationCandidatePayload;
-      const matches = await findOrganizationMatches(payload.name, organizations ?? []);
+      const sourceOrganization = source?.organization_id
+        ? activeOrganizations.find((organization) => organization.id === source.organization_id) ?? null
+        : null;
+      const matches = sourceOrganization
+        ? [sourceOrganization]
+        : await findOrganizationMatches(payload.name, activeOrganizations);
       if (matches.length === 1) {
         duplicateCount += 1;
         continue;
@@ -427,7 +463,7 @@ async function processExtractedCandidates({
       });
       if (result.created) createdCount += 1;
       else duplicateCount += 1;
-      if (result.id) pendingOrganizations.set(normalizeName(payload.name), result.id);
+      if (result.id) pendingOrganizations.set(normalizeOrganizationName(payload.name), result.id);
     } catch {
       failedCount += 1;
     }
@@ -436,23 +472,77 @@ async function processExtractedCandidates({
   for (const extracted of candidates.filter((item) => item.payload.kind === "publication")) {
     try {
       const originalPayload = extracted.payload as PublicationCandidatePayload;
-      const matches = originalPayload.organizationId
-        ? (organizations ?? []).filter((item) => item.id === originalPayload.organizationId)
-        : await findOrganizationMatches(originalPayload.organizationName, organizations ?? []);
+      const previousApproved = extracted.action === "create_publication"
+        ? await findLatestApprovedPublicationCandidate(sourceUrl, extracted.externalId)
+        : null;
+      let resolution = resolveImportOrganization({
+        payload: originalPayload,
+        sourceOrganizationId: source?.organization_id ?? null,
+        organizations: activeOrganizations
+      });
       const checkedEvidence = verifyEvidence(extracted.evidence, sourceText, sourceUrl);
       const warnings = [...extracted.warnings, ...checkedEvidence.warnings];
+      const sourceVersionHash = createContentHash({
+        payload: originalPayload,
+        evidence: checkedEvidence.verified
+      });
+      if (previousApproved && !previousApproved.source_version_hash) {
+        const { error: baselineError } = await admin
+          .from("content_candidates")
+          .update({
+            source_version_hash: sourceVersionHash,
+            last_seen_at: checkedAt.toISOString()
+          })
+          .eq("id", previousApproved.id);
+        if (baselineError) throw new Error("Не получилось сохранить версию первичного источника.");
+        duplicateCount += 1;
+        continue;
+      }
+      if (previousApproved?.source_version_hash === sourceVersionHash) {
+        const { error: seenError } = await admin
+          .from("content_candidates")
+          .update({ last_seen_at: checkedAt.toISOString() })
+          .eq("id", previousApproved.id);
+        if (seenError) throw new Error("Не получилось обновить время последней проверки материала.");
+        duplicateCount += 1;
+        continue;
+      }
       if (checkedEvidence.verified.length === 0) {
         warnings.push("Нет проверенного фрагмента-доказательства из первичного источника.");
       }
       let dependsOnCandidateId: string | null = null;
       let organizationId: string | null = null;
 
-      if (matches.length === 1) {
-        organizationId = matches[0].id;
-      } else if (matches.length > 1) {
-        warnings.push("Найдено несколько похожих организаций. Выберите организацию вручную.");
+      if (!resolution.organization && previousApproved?.target_organization_id) {
+        const previousOrganization = activeOrganizations.find(
+          (organization) => organization.id === previousApproved.target_organization_id
+        );
+        if (previousOrganization) {
+          resolution = {
+            organization: previousOrganization,
+            reason: "candidate_binding",
+            suggestions: resolution.suggestions
+          };
+          warnings.push("Организация взята из последней одобренной версии этой публикации.");
+        }
+      }
+
+      if (resolution.organization) {
+        organizationId = resolution.organization.id;
+        if (resolution.reason === "source_binding") {
+          warnings.push("Организация определена по явной привязке источника.");
+        } else if (resolution.reason === "exact_name") {
+          warnings.push("Организация автоматически сопоставлена по точному названию.");
+        }
       } else {
-        dependsOnCandidateId = pendingOrganizations.get(normalizeName(originalPayload.organizationName)) ?? null;
+        if (resolution.suggestions.length > 0) {
+          warnings.push(
+            `Найдены похожие организации: ${resolution.suggestions.map((item) => item.name).join(", ")}. Подтвердите выбор вручную.`
+          );
+        }
+        dependsOnCandidateId = pendingOrganizations.get(
+          normalizeOrganizationName(originalPayload.organizationName)
+        ) ?? null;
         if (!dependsOnCandidateId) {
           const dependency = await createMissingOrganizationCandidate({
             runId,
@@ -466,15 +556,49 @@ async function processExtractedCandidates({
           dependsOnCandidateId = dependency.id;
           if (dependency.created) createdCount += 1;
           else duplicateCount += 1;
-          if (dependency.id) pendingOrganizations.set(normalizeName(originalPayload.organizationName), dependency.id);
+          if (dependency.id) {
+            pendingOrganizations.set(
+              normalizeOrganizationName(originalPayload.organizationName),
+              dependency.id
+            );
+          }
         }
         warnings.push("Публикация ожидает решения по новой организации.");
       }
 
+      let effectiveCandidate = extracted;
       let targetPublicationId = originalPayload.targetPublicationId;
-      if (extracted.action === "update_publication" || extracted.action === "cancel_publication") {
+      const cancellationConfirmed = hasExplicitCancellationEvidence(checkedEvidence.verified);
+      const followup = resolvePublicationFollowup({
+        incomingAction: extracted.action,
+        previousAction: previousApproved?.action ?? null,
+        previousPublicationId: previousApproved?.result_publication_id ?? null,
+        cancellationConfirmed
+      });
+      if (followup.skip) {
+        duplicateCount += 1;
+        continue;
+      }
+      if (followup.action !== extracted.action) {
+        effectiveCandidate = {
+          ...extracted,
+          action: followup.action
+        };
+        warnings.push(followup.action === "cancel_publication"
+          ? "Для ранее импортированной публикации найдена подтверждённая отмена."
+          : "Изменённая версия будет предложена как обновление существующей публикации.");
+      }
+      targetPublicationId = followup.targetPublicationId ?? targetPublicationId;
+
+      if (
+        !targetPublicationId
+        && (
+          effectiveCandidate.action === "update_publication"
+          || effectiveCandidate.action === "cancel_publication"
+        )
+      ) {
         const target = await findTargetPublication({ ...originalPayload, organizationId });
-        targetPublicationId = target.id;
+        targetPublicationId = targetPublicationId ?? target.id;
         if (!targetPublicationId) {
           warnings.push(target.ambiguous
             ? "Найдено несколько возможных целевых публикаций. Выберите одну вручную."
@@ -482,15 +606,18 @@ async function processExtractedCandidates({
         }
       }
 
+      const resolvedPayload = resolution.organization
+        ? applyOrganizationDefaults(originalPayload, resolution.organization)
+        : originalPayload;
       const payload = contentCandidatePayloadSchema.parse({
-        ...originalPayload,
+        ...resolvedPayload,
         organizationId,
         targetPublicationId
       });
       warnings.push(...getCandidatePublishWarnings(payload, checkedAt));
       let forcedStatus: "stale" | "failed" | undefined;
       if (isCandidateStale(payload, checkedAt)) forcedStatus = "stale";
-      if (extracted.action === "cancel_publication" && !hasExplicitCancellationEvidence(checkedEvidence.verified)) {
+      if (effectiveCandidate.action === "cancel_publication" && !cancellationConfirmed) {
         warnings.push("Отмена не подтверждена явной формулировкой первичного источника.");
         forcedStatus = "failed";
       }
@@ -499,12 +626,13 @@ async function processExtractedCandidates({
         source,
         sourceUrl,
         sourceCheckedAt: checkedAt.toISOString(),
-        candidate: extracted,
+        candidate: effectiveCandidate,
         payload,
         evidence: checkedEvidence.verified,
         warnings: Array.from(new Set(warnings)),
         sourceExcerpt,
         dependsOnCandidateId,
+        sourceVersionHash,
         status: forcedStatus
       });
       if (result.created) createdCount += 1;
@@ -552,20 +680,43 @@ export async function processContentIngestionRequest(request: ProcessRequest): P
 
   try {
     await admin.from("content_candidates").update({ source_excerpt: null }).lt("raw_expires_at", new Date().toISOString());
+    const hasStoredExtractionDiagnostics = Boolean(
+      source?.adapter_id
+      && source.extraction_format
+      && source.extraction_format !== "unknown"
+    );
     const fetched = await fetchPublicSource(canonicalUrl, {
-      etag: source?.etag,
-      lastModified: source?.last_modified
+      etag: hasStoredExtractionDiagnostics ? source?.etag : null,
+      lastModified: hasStoredExtractionDiagnostics ? source?.last_modified : null
     });
     assertDomainAllowed(fetched.finalUrl, excludedDomains);
     if (fetched.notModified) {
       const finishedAt = new Date().toISOString();
-      await admin.from("content_ingestion_runs").update({ status: "succeeded", finished_at: finishedAt }).eq("id", run.id);
+      await admin.from("content_ingestion_runs").update({
+        status: "succeeded",
+        finished_at: finishedAt,
+        adapter_id: source?.adapter_id ?? null,
+        extraction_format: source?.extraction_format ?? null,
+        final_url: fetched.finalUrl
+      }).eq("id", run.id);
       if (source) await admin.from("content_sources").update({
+        last_checked_at: finishedAt,
         last_success_at: finishedAt,
+        last_tested_at: finishedAt,
+        next_check_at: new Date(Date.parse(finishedAt) + source.fetch_interval_minutes * 60_000).toISOString(),
         consecutive_failures: 0,
         last_error: null
       }).eq("id", source.id);
-      return { runId: run.id, discoveredCount: 0, createdCount: 0, duplicateCount: 0, failedCount: 0, notModified: true };
+      return {
+        runId: run.id,
+        discoveredCount: 0,
+        createdCount: 0,
+        duplicateCount: 0,
+        failedCount: 0,
+        notModified: true,
+        adapterId: source?.adapter_id ?? null,
+        extractionFormat: (source?.extraction_format as ProcessContentIngestionResult["extractionFormat"]) ?? null
+      };
     }
 
     const checkedAt = new Date();
@@ -596,6 +747,9 @@ export async function processContentIngestionRequest(request: ProcessRequest): P
     await admin.from("content_ingestion_runs").update({
       status: finalStatus,
       finished_at: finishedAt,
+      adapter_id: extraction.adapterId,
+      extraction_format: extraction.format,
+      final_url: fetched.finalUrl,
       discovered_count: discoveredCount,
       created_count: counters.createdCount,
       duplicate_count: counters.duplicateCount,
@@ -606,7 +760,13 @@ export async function processContentIngestionRequest(request: ProcessRequest): P
       canonical_url: fetched.finalUrl,
       etag: fetched.etag,
       last_modified: fetched.lastModified,
+      adapter_id: extraction.adapterId,
+      extraction_format: extraction.format,
+      is_active: extraction.format === "unknown" ? false : source.is_active,
+      last_checked_at: finishedAt,
       last_success_at: finishedAt,
+      last_tested_at: finishedAt,
+      next_check_at: new Date(Date.parse(finishedAt) + source.fetch_interval_minutes * 60_000).toISOString(),
       consecutive_failures: 0,
       last_error: null
     }).eq("id", source.id);
@@ -614,7 +774,9 @@ export async function processContentIngestionRequest(request: ProcessRequest): P
       runId: run.id,
       discoveredCount,
       ...counters,
-      notModified: false
+      notModified: false,
+      adapterId: extraction.adapterId,
+      extractionFormat: extraction.format
     };
   } catch (error) {
     const message = safeErrorMessage(error);
@@ -626,7 +788,10 @@ export async function processContentIngestionRequest(request: ProcessRequest): P
       error_message: message
     }).eq("id", run.id);
     if (source) await admin.from("content_sources").update({
+      last_checked_at: finishedAt,
       last_error_at: finishedAt,
+      last_tested_at: finishedAt,
+      next_check_at: new Date(Date.parse(finishedAt) + source.fetch_interval_minutes * 60_000).toISOString(),
       consecutive_failures: source.consecutive_failures + 1,
       last_error: message
     }).eq("id", source.id);

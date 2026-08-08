@@ -109,6 +109,7 @@ export default async function AdminImportCandidatePage({ params }: AdminImportCa
             <DetailRow label="Последний раз найден" value={formatDateTime(detail.last_seen_at)} />
             <DetailRow label="Внешний идентификатор" value={detail.external_id} />
             <DetailRow label="Уровень доверия" value={detail.content_sources?.trust_level} />
+            <DetailRow label="Обработчик" value={detail.content_sources?.adapter_id} />
             <DetailRow label="Запуск" value={detail.content_ingestion_runs?.status} />
             <DetailRow label="Инициатор" value={detail.content_ingestion_runs?.trigger} />
             <DetailRow label="Проверил" value={detail.reviewed_by} />
@@ -148,10 +149,12 @@ export default async function AdminImportCandidatePage({ params }: AdminImportCa
           <CardContent className="space-y-5">
             <SectionHeader
               title="Нормализованные данные"
-              description="Исправления сохраняются вместе с решением администратора."
+              description="Правки можно сохранить отдельно, не меняя публичные данные."
             />
             <CandidateReviewForm
+              key={detail.updated_at}
               candidateId={detail.id}
+              candidateUpdatedAt={detail.updated_at}
               action={detail.action}
               status={detail.status}
               payload={detail.parsedPayload}
@@ -162,15 +165,17 @@ export default async function AdminImportCandidatePage({ params }: AdminImportCa
               dependencyOrganization={detail.dependency_candidate && detail.parsedDependencyOrganization ? {
                 id: detail.dependency_candidate.id,
                 status: detail.dependency_candidate.status,
+                updatedAt: detail.dependency_candidate.updated_at,
                 payload: detail.parsedDependencyOrganization
               } : null}
               targetOrganizationId={detail.target_organization_id}
+              sourceOrganizationId={detail.content_sources?.organization_id ?? null}
             />
           </CardContent>
         </Card>
 
         <section className="min-w-0 space-y-4">
-          <SectionHeader title="Предпросмотр" description="До одобрения используется штатная заглушка; опубликованные карточки получают только копию из приватного Storage." />
+          <SectionHeader title="Предпросмотр" description="Показана последняя сохранённая версия. До одобрения используется штатная заглушка; опубликованные карточки получают только копию из приватного Storage." />
           <CandidatePreview candidateId={detail.id} payload={detail.parsedPayload} />
         </section>
       </div>

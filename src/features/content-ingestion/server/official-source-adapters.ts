@@ -292,7 +292,10 @@ const cultureAdapter: SourceAdapter = {
     && (url.pathname.startsWith("/afisha/") || url.pathname.startsWith("/events/")),
   async extract(input, profile) {
     const direct = cultureDetailBatches(input.fetched, profile);
-    if (direct.length > 0) return direct;
+    const hasDirectPublication = direct.some((batch) => (
+      batch.candidates.some((candidate) => candidate.payload.kind === "publication")
+    ));
+    if (hasDirectPublication) return direct;
     const links = uniqueDetailLinks(input.fetched.body, input.fetched.finalUrl, /^\/events\/\d+\//, 12);
     return fetchDetailBatches(links, profile, input.fetchDetail, cultureDetailBatches);
   }

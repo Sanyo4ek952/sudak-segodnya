@@ -4,6 +4,7 @@ import type {
   ContentCandidatePayload,
   OrganizationCandidatePayload
 } from "@/features/content-ingestion/model/contracts";
+import type { ContentCandidateFormIntent } from "@/features/content-ingestion/model/candidate-form";
 
 export const adminContentCandidateFilters = [
   "pending",
@@ -39,7 +40,10 @@ export type ContentIngestionRunRow = Tables<"content_ingestion_runs">;
 export type ContentCandidateRow = Tables<"content_candidates">;
 
 export type ContentCandidateListItem = ContentCandidateRow & {
-  content_sources: Pick<ContentSourceRow, "id" | "name" | "url" | "trust_level"> | null;
+  content_sources: Pick<
+    ContentSourceRow,
+    "id" | "name" | "url" | "trust_level" | "adapter_id" | "organization_id"
+  > | null;
 };
 
 export type ContentCandidateDetail = ContentCandidateListItem & {
@@ -47,7 +51,10 @@ export type ContentCandidateDetail = ContentCandidateListItem & {
   duplicate_candidate: Pick<ContentCandidateRow, "id" | "action" | "payload" | "status"> | null;
   duplicate_publication: Pick<Tables<"publications">, "id" | "slug" | "title" | "status"> | null;
   duplicate_organization: Pick<Tables<"organizations">, "id" | "slug" | "name" | "status"> | null;
-  dependency_candidate: Pick<ContentCandidateRow, "id" | "action" | "payload" | "status" | "result_organization_id"> | null;
+  dependency_candidate: Pick<
+    ContentCandidateRow,
+    "id" | "action" | "payload" | "status" | "result_organization_id" | "updated_at"
+  > | null;
   parsedPayload: ContentCandidatePayload;
   parsedDependencyOrganization: OrganizationCandidatePayload | null;
   parsedEvidence: ContentCandidateEvidence[];
@@ -56,6 +63,10 @@ export type ContentCandidateDetail = ContentCandidateListItem & {
 export type ContentIngestionActionState = {
   status: "idle" | "success" | "error";
   message: string;
+  intent?: ContentCandidateFormIntent | "source" | "manual_url" | "run";
+  fieldErrors?: Record<string, string>;
+  updatedAt?: string;
+  dependencyUpdatedAt?: string;
 };
 
 export const initialContentIngestionActionState: ContentIngestionActionState = {

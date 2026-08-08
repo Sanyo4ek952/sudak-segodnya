@@ -5,8 +5,7 @@ import {
   getContentIngestionDomainExclusions,
   getContentSources,
   getRecentContentIngestionRuns,
-  deleteContentIngestionDomainExclusionAction,
-  updateContentSourceAction
+  deleteContentIngestionDomainExclusionAction
 } from "@/features/content-ingestion/model/actions";
 import {
   contentCandidateActionLabels,
@@ -23,7 +22,8 @@ import {
   CreateSourceForm,
   DomainExclusionForm,
   ManualUrlForm,
-  RunIngestionForm
+  RunIngestionForm,
+  SourceSettingsForm
 } from "@/features/content-ingestion/ui/source-controls";
 import { formatDateTime } from "@/shared/lib/date";
 import { Badge } from "@/shared/ui/badge";
@@ -102,6 +102,33 @@ function runStatusVariant(status: string) {
   return "muted";
 }
 
+function sourceLifecycleState(source: {
+  is_active: boolean;
+  last_error: string | null;
+  last_error_at: string | null;
+  last_success_at: string | null;
+  last_tested_at: string | null;
+  extraction_format: string | null;
+}, isExcluded: boolean) {
+  if (isExcluded) return { label: "Исключён", variant: "warning" as const };
+  if (source.extraction_format === "unknown") {
+    return { label: "Нет обработчика", variant: "warning" as const };
+  }
+
+  const latestErrorIsUnresolved = Boolean(
+    source.last_error
+    && source.last_error_at
+    && (
+      !source.last_success_at
+      || Date.parse(source.last_error_at) >= Date.parse(source.last_success_at)
+    )
+  );
+  if (latestErrorIsUnresolved) return { label: "Ошибка", variant: "error" as const };
+  if (!source.last_tested_at) return { label: "Не проверен", variant: "muted" as const };
+  if (source.is_active) return { label: "Активен", variant: "success" as const };
+  return { label: "Приостановлен", variant: "muted" as const };
+}
+
 function buildListHref({
   status,
   action,
@@ -166,7 +193,7 @@ export default async function AdminImportsPage({ searchParams }: AdminImportsPag
               title="Новый источник"
               description="Добавьте официальный HTML- или RSS-источник для регулярной проверки."
             />
-            <CreateSourceForm />
+            <CreateSourceForm organizations={options.organizations} />
           </CardContent>
         </Card>
       </div>
@@ -346,6 +373,7 @@ export default async function AdminImportsPage({ searchParams }: AdminImportsPag
                 source.canonical_url,
                 excludedDomains
               );
+              const lifecycle = sourceLifecycleState(source, isExcluded);
               return (
               <Card key={source.id}>
                 <CardContent className="space-y-3">
@@ -356,43 +384,31 @@ export default async function AdminImportsPage({ searchParams }: AdminImportsPag
                         {source.url}
                       </a>
                     </div>
-                    <Badge variant={isExcluded ? "warning" : source.is_active ? "success" : "muted"}>
-                      {isExcluded ? "Исключён" : source.is_active ? "Активен" : "Выключен"}
+                    <Badge variant={lifecycle.variant}>
+                      {lifecycle.label}
                     </Badge>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="muted">{source.kind.toUpperCase()}</Badge>
                     <Badge variant="info">{sourceTrustLabels[source.trust_level] ?? source.trust_level}</Badge>
+                    {source.adapter_id ? <Badge variant="muted">{source.adapter_id}</Badge> : null}
                   </div>
                   <div className="text-sm leading-6 text-foreground-muted">
+                    <p>
+                      Организация: {source.organization_id
+                        ? options.organizations.find((item) => item.id === source.organization_id)?.name ?? "не найдена"
+                        : "определяется по содержимому"}
+                    </p>
+                    <p>Способ разбора: {source.extraction_format ?? "ещё не проверен"}</p>
+                    <p>Последний тест: {source.last_tested_at ? formatDateTime(source.last_tested_at) : "ещё не было"}</p>
                     <p>Следующая проверка: {formatDateTime(source.next_check_at)}</p>
                     <p>Последний успех: {source.last_success_at ? formatDateTime(source.last_success_at) : "ещё не было"}</p>
                     {source.consecutive_failures > 0 ? (
                       <p className="text-error">Ошибок подряд: {source.consecutive_failures}</p>
                     ) : null}
+                    {source.last_error ? <p className="text-error">{source.last_error}</p> : null}
                   </div>
-                  <form action={updateContentSourceAction} className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                    <input type="hidden" name="sourceId" value={source.id} />
-                    <FormField id={`source-interval-${source.id}`} label="Интервал, минут">
-                      <input
-                        id={`source-interval-${source.id}`}
-                        className="min-h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
-                        type="number"
-                        name="fetchIntervalMinutes"
-                        min="60"
-                        max="43200"
-                        defaultValue={source.fetch_interval_minutes}
-                      />
-                    </FormField>
-                    <div className="flex flex-wrap gap-2 self-end">
-                      <Button type="submit" name="isActive" value={String(source.is_active)} variant="outline" size="sm">
-                        Сохранить
-                      </Button>
-                      <Button type="submit" name="isActive" value={String(!source.is_active)} variant="secondary" size="sm">
-                        {source.is_active ? "Выключить" : "Включить"}
-                      </Button>
-                    </div>
-                  </form>
+                  <SourceSettingsForm source={source} organizations={options.organizations} />
                 </CardContent>
               </Card>
               );
@@ -418,8 +434,12 @@ export default async function AdminImportsPage({ searchParams }: AdminImportsPag
                     <p>Создан: {formatDateTime(run.created_at)}</p>
                     <p>Найдено: {run.discovered_count}</p>
                     <p>Добавлено: {run.created_count}</p>
-                    <p>Дубли / ошибки: {run.duplicate_count} / {run.failed_count}</p>
-                  </div>
+                     <p>Дубли / ошибки: {run.duplicate_count} / {run.failed_count}</p>
+                   </div>
+                   <p className="text-sm leading-6 text-foreground-muted">
+                     Обработчик: {run.adapter_id ?? "не определён"}
+                     {run.extraction_format ? ` · ${run.extraction_format}` : ""}
+                   </p>
                   {run.error_message ? <p className="text-sm leading-6 text-error">{run.error_message}</p> : null}
                 </CardContent>
               </Card>

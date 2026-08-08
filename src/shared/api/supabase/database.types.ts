@@ -169,6 +169,7 @@ export type Database = {
           source_excerpt: string | null
           source_id: string | null
           source_url: string
+          source_version_hash: string | null
           status: Database["public"]["Enums"]["content_candidate_status"]
           target_organization_id: string | null
           target_publication_id: string | null
@@ -204,6 +205,7 @@ export type Database = {
           source_excerpt?: string | null
           source_id?: string | null
           source_url: string
+          source_version_hash?: string | null
           status?: Database["public"]["Enums"]["content_candidate_status"]
           target_organization_id?: string | null
           target_publication_id?: string | null
@@ -239,6 +241,7 @@ export type Database = {
           source_excerpt?: string | null
           source_id?: string | null
           source_url?: string
+          source_version_hash?: string | null
           status?: Database["public"]["Enums"]["content_candidate_status"]
           target_organization_id?: string | null
           target_publication_id?: string | null
@@ -289,13 +292,16 @@ export type Database = {
       }
       content_ingestion_runs: {
         Row: {
+          adapter_id: string | null
           created_at: string
           created_by: string | null
           created_count: number
           discovered_count: number
           duplicate_count: number
           error_message: string | null
+          extraction_format: string | null
           failed_count: number
+          final_url: string | null
           finished_at: string | null
           id: string
           idempotency_key: string
@@ -307,13 +313,16 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          adapter_id?: string | null
           created_at?: string
           created_by?: string | null
           created_count?: number
           discovered_count?: number
           duplicate_count?: number
           error_message?: string | null
+          extraction_format?: string | null
           failed_count?: number
+          final_url?: string | null
           finished_at?: string | null
           id?: string
           idempotency_key: string
@@ -325,13 +334,16 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          adapter_id?: string | null
           created_at?: string
           created_by?: string | null
           created_count?: number
           discovered_count?: number
           duplicate_count?: number
           error_message?: string | null
+          extraction_format?: string | null
           failed_count?: number
+          final_url?: string | null
           finished_at?: string | null
           id?: string
           idempotency_key?: string
@@ -348,11 +360,13 @@ export type Database = {
       }
       content_sources: {
         Row: {
+          adapter_id: string | null
           canonical_url: string
           consecutive_failures: number
           created_at: string
           created_by: string | null
           etag: string | null
+          extraction_format: string | null
           fetch_interval_minutes: number
           id: string
           is_active: boolean
@@ -362,6 +376,7 @@ export type Database = {
           last_error_at: string | null
           last_modified: string | null
           last_success_at: string | null
+          last_tested_at: string | null
           name: string
           next_check_at: string
           notes: string | null
@@ -371,11 +386,13 @@ export type Database = {
           url: string
         }
         Insert: {
+          adapter_id?: string | null
           canonical_url: string
           consecutive_failures?: number
           created_at?: string
           created_by?: string | null
           etag?: string | null
+          extraction_format?: string | null
           fetch_interval_minutes?: number
           id?: string
           is_active?: boolean
@@ -385,6 +402,7 @@ export type Database = {
           last_error_at?: string | null
           last_modified?: string | null
           last_success_at?: string | null
+          last_tested_at?: string | null
           name: string
           next_check_at?: string
           notes?: string | null
@@ -394,11 +412,13 @@ export type Database = {
           url: string
         }
         Update: {
+          adapter_id?: string | null
           canonical_url?: string
           consecutive_failures?: number
           created_at?: string
           created_by?: string | null
           etag?: string | null
+          extraction_format?: string | null
           fetch_interval_minutes?: number
           id?: string
           is_active?: boolean
@@ -408,6 +428,7 @@ export type Database = {
           last_error_at?: string | null
           last_modified?: string | null
           last_success_at?: string | null
+          last_tested_at?: string | null
           name?: string
           next_check_at?: string
           notes?: string | null
@@ -1347,6 +1368,16 @@ export type Database = {
         }
         Returns: Json
       }
+      review_content_candidate_guarded: {
+        Args: {
+          p_candidate_id: string
+          p_decision: Database["public"]["Enums"]["content_candidate_decision"]
+          p_expected_updated_at: string
+          p_payload: Json | null
+          p_review_comment: string | null
+        }
+        Returns: Json
+      }
       review_content_candidate_with_organization: {
         Args: {
           p_candidate_id: string
@@ -1355,6 +1386,19 @@ export type Database = {
           p_organization_payload: Json
           p_payload: Json
           p_review_comment?: string | null
+        }
+        Returns: Json
+      }
+      review_content_candidate_with_organization_guarded: {
+        Args: {
+          p_candidate_id: string
+          p_decision: Database["public"]["Enums"]["content_candidate_decision"]
+          p_expected_updated_at: string
+          p_organization_candidate_id: string
+          p_organization_expected_updated_at: string
+          p_organization_payload: Json
+          p_payload: Json
+          p_review_comment: string | null
         }
         Returns: Json
       }
@@ -1369,6 +1413,19 @@ export type Database = {
       revoke_organization_invitation: {
         Args: { p_invitation_id: string }
         Returns: undefined
+      }
+      save_content_candidate_draft: {
+        Args: {
+          p_candidate_id: string
+          p_dependency_candidate_id?: string | null
+          p_dependency_expected_updated_at?: string | null
+          p_dependency_payload?: Json | null
+          p_expected_updated_at: string
+          p_payload: Json
+          p_target_organization_id?: string | null
+          p_target_publication_id?: string | null
+        }
+        Returns: Json
       }
       save_admin_publication: {
         Args: {
