@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   getVkImportAvailability,
+  normalizeVkDomain,
   vkManualImportCooldownMs
 } from "@/features/vk-import/model/types";
 import {
@@ -41,6 +42,21 @@ describe("VK manual import availability", () => {
       lastStartedAt,
       nextAvailableAt: "2026-08-10T12:00:00.000Z"
     });
+  });
+});
+
+describe("VK source domain normalization", () => {
+  it.each([
+    "https://vk.ru/okrugsudak",
+    "https://www.vk.ru/okrugsudak",
+    "https://vk.com/okrugsudak",
+    "okrugsudak"
+  ])("accepts %s", (value) => {
+    expect(normalizeVkDomain(value)).toBe("okrugsudak");
+  });
+
+  it("rejects links outside the VK hostname allowlist", () => {
+    expect(normalizeVkDomain("https://example.com/okrugsudak")).toBeNull();
   });
 });
 

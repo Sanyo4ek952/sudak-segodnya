@@ -1,6 +1,8 @@
 export const vkExternalItemStatuses = ["new", "imported", "ignored", "error"] as const;
 export type VkExternalItemStatus = (typeof vkExternalItemStatuses)[number];
 
+const vkCommunityHostnames = new Set(["vk.com", "www.vk.com", "vk.ru", "www.vk.ru"]);
+
 export const vkManualImportCooldownMs = 24 * 60 * 60 * 1000;
 
 export type VkImportAvailability = {
@@ -31,6 +33,23 @@ export function parseVkExternalItemStatus(value: unknown): VkExternalItemStatus 
   return typeof value === "string" && vkExternalItemStatuses.includes(value as VkExternalItemStatus)
     ? value as VkExternalItemStatus
     : "new";
+}
+
+export function normalizeVkDomain(rawValue: string) {
+  let value = rawValue.trim();
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const url = new URL(value);
+      if (!vkCommunityHostnames.has(url.hostname.toLowerCase())) return null;
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts.length !== 1 || url.search || url.hash) return null;
+      value = parts[0];
+    } catch {
+      return null;
+    }
+  }
+  value = value.replace(/^@/, "").toLowerCase();
+  return /^[a-z0-9_.-]{2,100}$/.test(value) ? value : null;
 }
 
 export function getVkImportAvailability(
