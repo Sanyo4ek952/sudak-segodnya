@@ -97,7 +97,7 @@ export default async function AdminVkQueuePage({ searchParams }: AdminVkQueuePag
         as="h1"
         title="Импорт VK"
         description="Закрытая очередь. VK-пост не попадает в ленту без проверки и решения администратора."
-        action={<RunVkImportForm />}
+        action={<RunVkImportForm availability={result.availability} />}
       />
 
       {prepareError ? (

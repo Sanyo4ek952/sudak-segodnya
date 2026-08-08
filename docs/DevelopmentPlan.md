@@ -275,8 +275,9 @@ needs_changes; production-данные для этого не использов
   `external_items` с дедупликацией по источнику и VK post id;
 - Edge Function нормализует owner-посты, сохраняет provenance и изолирует
   ошибки отдельных сообществ;
-- ручной и плановый запуск используют один защищённый server-to-server
-  контракт, секреты не передаются в браузер;
+- только ручной запуск использует защищённый server-to-server контракт;
+  PostgreSQL ограничивает его одним запуском за скользящие 24 часа, секреты не
+  передаются в браузер;
 - создание публикации проходит через существующую админ-форму и guarded RPC:
   автоматической публикации нет, связь с итоговой публикацией фиксируется
   транзакционно;
@@ -290,12 +291,21 @@ needs_changes; production-данные для этого не использов
 - `npm test`: 28 файлов, 168/168 тестов;
 - `npm exec tsc -- --noEmit`: пройдено;
 - `npm run lint`: пройдено;
-- `npm run build`: пройдено, включая новые admin и cron routes;
+- `npm run build`: пройдено, включая новые admin routes;
 - полный `supabase db reset`: пройден со всей цепочкой миграций;
 - `supabase test db supabase/tests/rls_vk_import.sql --local`: 24/24;
 - полный `supabase test db --local`: 9 файлов, 218/218;
 - локальная Edge Function запущена, запрос без внутреннего секрета получил
-  `401`; реальный VK API и hosted cron без production-секретов не проверялись.
+  `401`; реальный VK API и hosted manual invocation без production-секретов не
+  проверялись.
+
+Дополнительный прогон ручного суточного запуска 2026-08-09:
+
+- `npm test`: 31 файл, 181/181 тест;
+- `npm exec tsc -- --noEmit`, `npm run lint`, `npm run build`: пройдены;
+- полный `supabase db reset`: пройден со всей цепочкой миграций;
+- `supabase test db supabase/tests/rls_vk_manual_import.sql`: 17/17;
+- полный `supabase test db`: 10 файлов, 235/235.
 
 ## Definition of Done
 

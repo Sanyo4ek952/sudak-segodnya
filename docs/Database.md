@@ -270,6 +270,19 @@ publication к нескольким VK items. `prepare_vk_external_item_for_revi
 review атомарно переносит `result_publication_id` и terminal status обратно в
 `external_items`.
 
+### vk_manual_import_runs
+
+Назначение: журнал ручных запусков VK и серверная граница частоты.
+
+Поля: `status`, `requested_by`, `started_at`, `finished_at`, `summary`, `error`.
+Статусы: `running`, `succeeded`, `partial`, `failed`. Таблицу читают только
+администраторы; прямые insert/update клиентским ролям запрещены.
+
+`start_vk_manual_import()` использует transaction advisory lock и отклоняет
+повторный или параллельный запуск, если с последнего `started_at` не прошло 24
+часа. `finish_vk_manual_import()` разрешает завершить run только тому
+администратору, который его запросил.
+
 ## 4. RLS на уровне продукта
 
 Helper-функции:

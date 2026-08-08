@@ -130,28 +130,35 @@ Unique index `(source_id, external_id)` делает повторный `wall.ge
   Supabase Edge Function Secrets и серверном окружении Next/Vercel;
 - `SUPABASE_SERVICE_ROLE_KEY` — стандартный серверный secret Supabase/Next,
   никогда не передаётся клиенту;
-- `CRON_SECRET` — защищает существующие Vercel cron routes.
+- `CRON_SECRET` — защищает другие существующие Vercel cron routes; VK его не
+  использует.
 
 Только `vk-import` имеет scoped `verify_jwt = false`: функция до любой работы
 проверяет `VK_IMPORT_INTERNAL_SECRET` в `Authorization` и иначе возвращает 401.
 Браузер Edge Function не вызывает. Ручная кнопка сначала проверяет admin-сессию
-на Next server, а `/api/cron/vk-import` — `CRON_SECRET`.
+на Next server, затем атомарно резервирует один суточный запуск через
+`start_vk_manual_import()`. Следующий запуск доступен ровно через 24 часа;
+состояние кнопки является только UI-подсказкой, серверный RPC остаётся границей
+безопасности для повторного или параллельного запроса.
 
 ### Развёртывание и эксплуатация
 
-1. Применить migration `20260808220000_vk_external_import.sql`.
+1. Применить migrations `20260808220000_vk_external_import.sql`,
+   `20260808230000_vk_manual_daily_import.sql` и
+   `20260808240000_fix_vk_manual_import_claim.sql`.
 2. Создать/проверить перечисленные secrets без вывода их значений в логи.
 3. Развернуть `vk-import` командой `supabase functions deploy vk-import`.
-4. Развернуть Next/Vercel с `VK_IMPORT_INTERNAL_SECRET` и `CRON_SECRET`.
+4. Развернуть Next/Vercel с `VK_IMPORT_INTERNAL_SECRET`.
 5. Открыть `/admin/vk/sources`, добавить сообщество и выполнить ручную
    синхронизацию. Только после этого считать intake проверенным.
 
-`vercel.json` использует существующий scheduler и вызывает
-`/api/cron/vk-import` каждые 30 минут. Повтор безопасен, а ошибка одного
-сообщества записывается в `last_sync_error` и не прерывает остальные. Hosted
-cron и реальный VK token нельзя считать проверенными по локальным тестам: после
-deployment нужно проверить Vercel Cron logs, Edge Function invocation и появление
-одной строки `external_items` при двух последовательных запусках.
+`vercel.json` не содержит VK cron. Время первого запуска каждого суточного окна
+выбирает администратор кнопкой «Синхронизировать». До истечения 24 часов кнопка
+недоступна и показывает ближайшее время запуска по Москве. Ошибка одного
+сообщества записывается в `last_sync_error` и не прерывает остальные. Реальный
+VK token и hosted invocation нельзя считать проверенными по локальным тестам:
+после deployment нужно проверить Edge Function logs, первый ручной результат и
+отсутствие дублей после следующего разрешённого суточного запуска.
 
 При истечении/замене VK token обновить только `VK_ACCESS_TOKEN` в Supabase Edge
 Function Secrets, затем запустить синхронизацию вручную. Старое значение не

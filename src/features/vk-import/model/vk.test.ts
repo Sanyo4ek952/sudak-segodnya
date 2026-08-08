@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  getVkImportAvailability,
+  vkManualImportCooldownMs
+} from "@/features/vk-import/model/types";
+import {
   buildVkPostUrl,
   fetchVkWall,
   normalizeVkPost,
@@ -10,6 +14,35 @@ import {
   type NormalizedVkPost,
   type VkExternalSource
 } from "../../../../supabase/functions/_shared/vk";
+
+describe("VK manual import availability", () => {
+  const now = Date.parse("2026-08-10T12:00:00.000Z");
+
+  it("allows the first manual import", () => {
+    expect(getVkImportAvailability(null, now)).toEqual({
+      canRun: true,
+      lastStartedAt: null,
+      nextAvailableAt: null
+    });
+  });
+
+  it("blocks another click inside the rolling 24-hour window", () => {
+    const lastStartedAt = new Date(now - vkManualImportCooldownMs + 1).toISOString();
+    expect(getVkImportAvailability(lastStartedAt, now)).toMatchObject({
+      canRun: false,
+      lastStartedAt
+    });
+  });
+
+  it("allows the next click exactly 24 hours later", () => {
+    const lastStartedAt = new Date(now - vkManualImportCooldownMs).toISOString();
+    expect(getVkImportAvailability(lastStartedAt, now)).toMatchObject({
+      canRun: true,
+      lastStartedAt,
+      nextAvailableAt: "2026-08-10T12:00:00.000Z"
+    });
+  });
+});
 
 const source: VkExternalSource = {
   id: "00000000-0000-0000-0000-000000000901",

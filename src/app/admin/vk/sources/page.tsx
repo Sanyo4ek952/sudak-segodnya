@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function AdminVkSourcesPage() {
-  const { sources, organizations } = await getVkSourceAdminData();
+  const { sources, organizations, availability } = await getVkSourceAdminData();
   return (
     <div className="mx-auto max-w-content space-y-6">
       <VkImportNavigation />
@@ -23,7 +23,7 @@ export default async function AdminVkSourcesPage() {
         as="h1"
         title="Источники VK"
         description="Разрешённые публичные сообщества. Токен VK хранится только в Supabase Edge Function Secrets."
-        action={<RunVkImportForm />}
+        action={<RunVkImportForm availability={availability} />}
       />
 
       <Card>

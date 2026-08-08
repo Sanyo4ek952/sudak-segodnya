@@ -6,7 +6,10 @@ import {
   runVkImportNowAction,
   updateVkSourceAction
 } from "@/features/vk-import/model/actions";
-import { initialVkImportActionState } from "@/features/vk-import/model/types";
+import {
+  initialVkImportActionState,
+  type VkImportAvailability
+} from "@/features/vk-import/model/types";
 import { VkImportActionMessage } from "@/features/vk-import/ui/vk-import-action-message";
 import { FormField } from "@/shared/ui/form-field";
 import { Input } from "@/shared/ui/input";
@@ -21,6 +24,14 @@ type VkSourceSettings = {
   organization_id: string | null;
   is_active: boolean;
 };
+
+const moscowDateTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
+  timeZone: "Europe/Moscow",
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit"
+});
 
 export function CreateVkSourceForm({ organizations }: { organizations: OrganizationOption[] }) {
   const [state, action] = useActionState(createVkSourceAction, initialVkImportActionState);
@@ -145,14 +156,25 @@ export function VkSourceSettingsForm({
   );
 }
 
-export function RunVkImportForm() {
+export function RunVkImportForm({ availability }: { availability: VkImportAvailability }) {
   const [state, action] = useActionState(runVkImportNowAction, initialVkImportActionState);
+  const availabilityMessage = availability.canRun
+    ? "Доступен один ручной запуск в 24 часа."
+    : availability.nextAvailableAt
+      ? `Следующий запуск: ${moscowDateTimeFormatter.format(new Date(availability.nextAvailableAt))} МСК.`
+      : "Повторный запуск временно недоступен.";
   return (
-    <form action={action} className="space-y-2">
+    <form action={action} className="max-w-xs space-y-2">
       <VkImportActionMessage state={state} />
-      <SubmitButton variant="outline" size="sm" pendingLabel="Синхронизируем…">
+      <SubmitButton
+        variant="outline"
+        size="sm"
+        pendingLabel="Синхронизируем…"
+        disabled={!availability.canRun}
+      >
         Синхронизировать
       </SubmitButton>
+      <p className="text-xs leading-5 text-foreground-muted">{availabilityMessage}</p>
     </form>
   );
 }

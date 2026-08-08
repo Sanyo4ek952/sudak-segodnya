@@ -579,6 +579,36 @@ export type Database = {
           },
         ]
       }
+      vk_manual_import_runs: {
+        Row: {
+          error: string | null
+          finished_at: string | null
+          id: string
+          requested_by: string
+          started_at: string
+          status: Database["public"]["Enums"]["vk_manual_import_run_status"]
+          summary: Json | null
+        }
+        Insert: {
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          requested_by: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["vk_manual_import_run_status"]
+          summary?: Json | null
+        }
+        Update: {
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          requested_by?: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["vk_manual_import_run_status"]
+          summary?: Json | null
+        }
+        Relationships: []
+      }
       important_announcements: {
         Row: {
           active_from: string | null
@@ -1410,6 +1440,15 @@ export type Database = {
         Args: { p_item_id: string }
         Returns: string
       }
+      finish_vk_manual_import: {
+        Args: {
+          p_error?: string | null
+          p_run_id: string
+          p_status: Database["public"]["Enums"]["vk_manual_import_run_status"]
+          p_summary?: Json | null
+        }
+        Returns: undefined
+      }
       create_inaccuracy_report: {
         Args: {
           comment: string
@@ -1500,6 +1539,10 @@ export type Database = {
       prepare_vk_external_item_for_review: {
         Args: { p_item_id: string }
         Returns: string
+      }
+      start_vk_manual_import: {
+        Args: never
+        Returns: Json
       }
       request_organization_application_changes: {
         Args: { admin_comment: string; application_id: string }
@@ -1757,6 +1800,7 @@ export type Database = {
       content_source_trust: "official" | "partner" | "discovery"
       external_item_status: "new" | "imported" | "ignored" | "error"
       external_platform: "vk"
+      vk_manual_import_run_status: "running" | "succeeded" | "partial" | "failed"
       important_announcement_status: "draft" | "active" | "expired" | "hidden"
       inaccuracy_report_reason:
         | "wrong_datetime"
@@ -1973,6 +2017,7 @@ export const Constants = {
       content_source_trust: ["official", "partner", "discovery"],
       external_item_status: ["new", "imported", "ignored", "error"],
       external_platform: ["vk"],
+      vk_manual_import_run_status: ["running", "succeeded", "partial", "failed"],
       important_announcement_status: ["draft", "active", "expired", "hidden"],
       inaccuracy_report_reason: [
         "wrong_datetime",

@@ -4,10 +4,6 @@
     {
       "path": "/api/cron/content-ingestion",
       "schedule": "15 3 * * *"
-    },
-    {
-      "path": "/api/cron/vk-import",
-      "schedule": "*/30 * * * *"
     }
   ]
 }
