@@ -244,6 +244,32 @@ audit metadata. Версия источника не меняется при р�
 
 Назначение: обратимый запрет импорта с домена и всех его поддоменов.
 
+### external_sources
+
+Назначение: allowlist VK-сообществ для Edge Function `vk-import`.
+
+Поля: `platform`, `external_id`, `domain`, `name`, `url`, nullable
+`organization_id`, `is_active`, `last_synced_at`, `last_sync_error`,
+`created_by`, timestamps. MVP допускает только `platform = vk`. Domain уникален
+без учёта регистра; известный VK owner id также уникален. Источник не удаляется
+при наличии provenance — его приостанавливают через `is_active`.
+
+### external_items
+
+Назначение: закрытая VK-очередь до административного решения.
+
+Поля: `source_id`, VK `external_id`, `source_url`, `text`, `published_at`,
+`media`, `raw_payload`, `status`, nullable `content_candidate_id` и
+`publication_id`, даты импорта/решения и `reviewed_by`. Статусы: `new`,
+`imported`, `ignored`, `error`.
+
+Unique `(source_id, external_id)` не допускает второй строки для повторного
+`wall.get`; отдельные unique indexes запрещают привязать один candidate или
+publication к нескольким VK items. `prepare_vk_external_item_for_review()`
+идемпотентно создаёт существующий `content_candidates`, а trigger после guarded
+review атомарно переносит `result_publication_id` и terminal status обратно в
+`external_items`.
+
 ## 4. RLS на уровне продукта
 
 Helper-функции:
@@ -291,6 +317,9 @@ Helper-функции:
 - админские изменения публикаций и организаций выполняются через
   `admin_moderate_publication` и `admin_moderate_organization` с обязательной
   причиной и записью `audit_events`.
+- читает и настраивает `external_sources`, читает `external_items`; Ignore и
+  подготовка VK-prefill выполняются только admin RPC. Anon и обычный
+  authenticated пользователь не получают table access.
 
 Storage:
 

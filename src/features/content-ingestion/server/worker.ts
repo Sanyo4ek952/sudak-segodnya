@@ -17,12 +17,13 @@ import {
 } from "@/features/content-ingestion/model/fingerprint";
 import { isUrlExcludedByDomain } from "@/features/content-ingestion/model/domain-exclusion";
 import {
+  classifyCandidateTemporalState,
   hasExplicitCancellationEvidence,
-  isCandidateStale,
   selectOrganizationEvidence
 } from "@/features/content-ingestion/model/candidate-rules";
 import {
   applyOrganizationDefaults,
+  createOrganizationIdentityKey,
   normalizeOrganizationName,
   resolveImportOrganization,
   type ImportOrganization
@@ -37,6 +38,11 @@ import { createSupabaseAdminClient } from "@/shared/api/supabase/admin";
 import type { Tables } from "@/shared/api/supabase/database.types";
 
 type ContentSource = Tables<"content_sources">;
+
+type OrganizationResolutionContext = {
+  activeOrganizations: ImportOrganization[];
+  pendingOrganizations: Map<string, string>;
+};
 
 type ProcessRequest = {
   sourceId?: string;
@@ -120,6 +126,57 @@ async function findOrganizationMatches(
   return organizations.filter(
     (organization) => normalizeOrganizationName(organization.name) === target
   );
+}
+
+async function findOpenOrganizationCandidate(organizationIdentityKey: string) {
+  const admin = createSupabaseAdminClient();
+  for (const status of ["pending", "duplicate"] as const) {
+    const { data, error } = await admin
+      .from("content_candidates")
+      .select("id")
+      .eq("action", "create_organization")
+      .eq("organization_identity_key", organizationIdentityKey)
+      .eq("status", status)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error("Не получилось проверить открытого кандидата организации.");
+    if (data) return data.id;
+  }
+  return null;
+}
+
+async function createOrganizationResolutionContext(): Promise<OrganizationResolutionContext> {
+  const admin = createSupabaseAdminClient();
+  const [organizationsResult, candidatesResult] = await Promise.all([
+    admin.from("organizations").select("id, name, address, phone").eq("status", "active"),
+    admin.from("content_candidates")
+      .select("id, organization_identity_key, status, created_at")
+      .eq("action", "create_organization")
+      .in("status", ["pending", "duplicate"])
+      .not("organization_identity_key", "is", null)
+      .order("created_at", { ascending: true })
+  ]);
+  if (organizationsResult.error || candidatesResult.error) {
+    throw new Error("Не получилось подготовить сопоставление организаций.");
+  }
+
+  const pendingOrganizations = new Map<string, string>();
+  for (const status of ["pending", "duplicate"] as const) {
+    for (const candidate of candidatesResult.data ?? []) {
+      if (
+        candidate.status === status
+        && candidate.organization_identity_key
+        && !pendingOrganizations.has(candidate.organization_identity_key)
+      ) {
+        pendingOrganizations.set(candidate.organization_identity_key, candidate.id);
+      }
+    }
+  }
+  return {
+    activeOrganizations: (organizationsResult.data ?? []) as ImportOrganization[],
+    pendingOrganizations
+  };
 }
 
 async function findCrossSourceDuplicate(
@@ -269,6 +326,18 @@ async function insertCandidate({
   status?: "pending" | "duplicate" | "stale" | "failed";
 }) {
   const admin = createSupabaseAdminClient();
+  const organizationIdentityKey = payload.kind === "organization"
+    ? createOrganizationIdentityKey(payload.name)
+    : null;
+  if (organizationIdentityKey) {
+    const existingOrganizationCandidateId = await findOpenOrganizationCandidate(organizationIdentityKey);
+    if (existingOrganizationCandidateId) {
+      await admin.from("content_candidates")
+        .update({ last_seen_at: sourceCheckedAt })
+        .eq("id", existingOrganizationCandidateId);
+      return { id: existingOrganizationCandidateId, created: false, duplicate: true };
+    }
+  }
   const contentHash = createContentHash({ action: candidate.action, payload, evidence });
   const stableSourceVersionHash = sourceVersionHash ?? contentHash;
   const fingerprint = createContentFingerprint(payload);
@@ -326,6 +395,7 @@ async function insertCandidate({
     content_hash: contentHash,
     source_version_hash: stableSourceVersionHash,
     normalized_fingerprint: fingerprint,
+    organization_identity_key: organizationIdentityKey,
     duplicate_of_id: duplicateCandidateId,
     duplicate_publication_id: duplicatePublicationId,
     target_organization_id: payload.kind === "publication" ? payload.organizationId : null,
@@ -334,6 +404,15 @@ async function insertCandidate({
   }).select("id, status").single();
 
   if (error?.code === "23505") {
+    if (organizationIdentityKey) {
+      const existingOrganizationCandidateId = await findOpenOrganizationCandidate(organizationIdentityKey);
+      if (existingOrganizationCandidateId) {
+        await admin.from("content_candidates")
+          .update({ last_seen_at: sourceCheckedAt })
+          .eq("id", existingOrganizationCandidateId);
+        return { id: existingOrganizationCandidateId, created: false, duplicate: true };
+      }
+    }
     let existingQuery = admin
       .from("content_candidates")
       .select("id, status")
@@ -410,7 +489,8 @@ async function processExtractedCandidates({
   sourceUrl,
   sourceText,
   checkedAt,
-  candidates
+  candidates,
+  organizationContext
 }: {
   runId: string;
   source: ContentSource | null;
@@ -418,24 +498,20 @@ async function processExtractedCandidates({
   sourceText: string;
   checkedAt: Date;
   candidates: ExtractedCandidate[];
+  organizationContext: OrganizationResolutionContext;
 }) {
   const admin = createSupabaseAdminClient();
-  const { data: organizations, error } = await admin
-    .from("organizations")
-    .select("id, name, address, phone")
-    .eq("status", "active");
-  if (error) throw new Error("Не получилось сопоставить организации.");
 
   let createdCount = 0;
   let duplicateCount = 0;
   let failedCount = 0;
   const sourceExcerpt = compactExcerpt(sourceText);
-  const pendingOrganizations = new Map<string, string>();
-  const activeOrganizations = (organizations ?? []) as ImportOrganization[];
+  const { activeOrganizations, pendingOrganizations } = organizationContext;
 
   for (const extracted of candidates.filter((item) => item.payload.kind === "organization")) {
     try {
       const payload = extracted.payload as OrganizationCandidatePayload;
+      const organizationIdentityKey = createOrganizationIdentityKey(payload.name);
       const sourceOrganization = source?.organization_id
         ? activeOrganizations.find((organization) => organization.id === source.organization_id) ?? null
         : null;
@@ -443,6 +519,10 @@ async function processExtractedCandidates({
         ? [sourceOrganization]
         : await findOrganizationMatches(payload.name, activeOrganizations);
       if (matches.length === 1) {
+        duplicateCount += 1;
+        continue;
+      }
+      if (pendingOrganizations.has(organizationIdentityKey)) {
         duplicateCount += 1;
         continue;
       }
@@ -463,7 +543,7 @@ async function processExtractedCandidates({
       });
       if (result.created) createdCount += 1;
       else duplicateCount += 1;
-      if (result.id) pendingOrganizations.set(normalizeOrganizationName(payload.name), result.id);
+      if (result.id) pendingOrganizations.set(organizationIdentityKey, result.id);
     } catch {
       failedCount += 1;
     }
@@ -541,7 +621,7 @@ async function processExtractedCandidates({
           );
         }
         dependsOnCandidateId = pendingOrganizations.get(
-          normalizeOrganizationName(originalPayload.organizationName)
+          createOrganizationIdentityKey(originalPayload.organizationName)
         ) ?? null;
         if (!dependsOnCandidateId) {
           const dependency = await createMissingOrganizationCandidate({
@@ -558,7 +638,7 @@ async function processExtractedCandidates({
           else duplicateCount += 1;
           if (dependency.id) {
             pendingOrganizations.set(
-              normalizeOrganizationName(originalPayload.organizationName),
+              createOrganizationIdentityKey(originalPayload.organizationName),
               dependency.id
             );
           }
@@ -609,14 +689,17 @@ async function processExtractedCandidates({
       const resolvedPayload = resolution.organization
         ? applyOrganizationDefaults(originalPayload, resolution.organization)
         : originalPayload;
-      const payload = contentCandidatePayloadSchema.parse({
+      const parsedPayload = contentCandidatePayloadSchema.parse({
         ...resolvedPayload,
         organizationId,
         targetPublicationId
       });
+      const temporalState = classifyCandidateTemporalState(parsedPayload, checkedAt);
+      const payload = contentCandidatePayloadSchema.parse(temporalState.payload);
+      warnings.push(...temporalState.warnings);
       warnings.push(...getCandidatePublishWarnings(payload, checkedAt));
       let forcedStatus: "stale" | "failed" | undefined;
-      if (isCandidateStale(payload, checkedAt)) forcedStatus = "stale";
+      if (temporalState.status === "stale") forcedStatus = "stale";
       if (effectiveCandidate.action === "cancel_publication" && !cancellationConfirmed) {
         warnings.push("Отмена не подтверждена явной формулировкой первичного источника.");
         forcedStatus = "failed";
@@ -725,6 +808,7 @@ export async function processContentIngestionRequest(request: ProcessRequest): P
       sourceKind: source?.kind ?? null,
       sourceName: source?.name ?? null
     });
+    const organizationContext = await createOrganizationResolutionContext();
     const counters = { createdCount: 0, duplicateCount: 0, failedCount: 0 };
     let discoveredCount = 0;
     for (const batch of extraction.batches) {
@@ -736,7 +820,8 @@ export async function processContentIngestionRequest(request: ProcessRequest): P
         sourceUrl: batch.sourceUrl,
         sourceText: batch.sourceText,
         checkedAt,
-        candidates: batch.candidates
+        candidates: batch.candidates,
+        organizationContext
       });
       counters.createdCount += batchCounters.createdCount;
       counters.duplicateCount += batchCounters.duplicateCount;

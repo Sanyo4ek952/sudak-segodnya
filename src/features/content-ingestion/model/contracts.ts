@@ -80,6 +80,7 @@ export const publicationCandidatePayloadSchema = z.object({
   startsAt: optionalNullableDateTime,
   endsAt: optionalNullableDateTime,
   validUntil: optionalNullableDateTime,
+  sourcePublishedAt: optionalNullableDateTime.optional(),
   place: optionalNullableText(300),
   priceText: optionalNullableText(120),
   isFree: z.boolean().default(false),
@@ -120,7 +121,7 @@ export const extractedCandidateSchema = z
     }
 
     if (candidate.payload.kind === "publication") {
-      for (const field of ["startsAt", "endsAt", "validUntil"] as const) {
+      for (const field of ["startsAt", "endsAt", "validUntil", "sourcePublishedAt"] as const) {
         const value = candidate.payload[field];
         if (value && !value.endsWith("+03:00")) {
           context.addIssue({
@@ -180,6 +181,9 @@ export function getCandidatePublishWarnings(payload: ContentCandidatePayload, no
   }
   if (!payload.organizationId) {
     warnings.push("Свяжите материал с активной организацией.");
+  }
+  if (payload.type === "news" && !payload.sourcePublishedAt) {
+    warnings.push("Укажите подтверждённую дату публикации в первичном источнике.");
   }
   if (!payload.imageSourceUrl) {
     warnings.push("Источник не предоставил изображение; будет использована нейтральная заглушка.");

@@ -4,6 +4,7 @@ import {
   type ExtractedCandidate,
   type PublicationCandidatePayload
 } from "@/features/content-ingestion/model/contracts";
+import { applyImportedNewsValidity } from "@/features/content-ingestion/model/candidate-rules";
 import { sanitizeSourceText } from "@/features/content-ingestion/server/secure-fetch";
 
 export type SourceProfile = {
@@ -29,6 +30,7 @@ type PublicationBatchInput = {
   startsAt?: string | null;
   endsAt?: string | null;
   validUntil?: string | null;
+  sourcePublishedAt?: string | null;
   place?: string | null;
   priceText?: string | null;
   isFree?: boolean;
@@ -118,7 +120,9 @@ export function toMoscowOffsetIso(value: unknown, endOfDay = false) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
     return `${normalized}T${endOfDay ? "23:59:59" : "00:00:00"}+03:00`;
   }
-  const withZone = /(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(normalized) ? normalized : `${normalized}+03:00`;
+  const hasExplicitZone = /(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(normalized)
+    || /\b(?:GMT|UTC)\b/i.test(normalized);
+  const withZone = hasExplicitZone ? normalized : `${normalized}+03:00`;
   const parsed = new Date(withZone);
   if (Number.isNaN(parsed.getTime())) return null;
   const moscow = new Date(parsed.getTime() + 3 * 60 * 60 * 1000);
@@ -161,6 +165,26 @@ function validCalendarDate(year: number, month: number, day: number) {
 function localDateTime(year: number, month: number, day: number, time: string) {
   if (!validCalendarDate(year, month, day)) return null;
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${time}+03:00`;
+}
+
+export function toMoscowSourcePublishedAt(value: unknown) {
+  const parsedStandard = toMoscowOffsetIso(value);
+  if (parsedStandard || typeof value !== "string") return parsedStandard;
+  const match = new RegExp(
+    `\\b(\\d{1,2})\\s+(${russianMonthPattern})\\s+(20\\d{2})(?:\\s*(?:года?|г\\.))?(?:\\s+в\\s+(\\d{1,2})(?::(\\d{2}))?)?`,
+    "i"
+  ).exec(value.normalize("NFKC").replace(/\u00a0/g, " "));
+  if (!match?.[1] || !match[2] || !match[3]) return null;
+  const month = russianMonthNumbers[match[2].toLocaleLowerCase("ru-RU")];
+  const hour = Number(match[4] ?? 0);
+  const minute = Number(match[5] ?? 0);
+  if (!month || hour > 23 || minute > 59) return null;
+  return localDateTime(
+    Number(match[3]),
+    month,
+    Number(match[1]),
+    `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`
+  );
 }
 
 function intervalResult({
@@ -299,29 +323,31 @@ export function createClosedPublicationBatch(input: PublicationBatchInput): Sour
     }
   }
 
+  const payload = applyImportedNewsValidity({
+    kind: "publication",
+    organizationId: null,
+    organizationName: compact(input.organizationName, 180) ?? input.profile.organizationName,
+    targetPublicationId: null,
+    type: input.type ?? "news",
+    title,
+    description,
+    categorySlug: input.profile.categorySlug,
+    startsAt: input.startsAt ?? null,
+    endsAt: input.endsAt ?? null,
+    validUntil: input.validUntil ?? null,
+    sourcePublishedAt: input.sourcePublishedAt ?? null,
+    place: compact(input.place, 300),
+    priceText: compact(input.priceText, 120),
+    isFree: input.isFree ?? false,
+    ageLimit: compact(input.ageLimit, 40),
+    contactPhone: compact(input.contactPhone, 80),
+    scheduleEntries: input.scheduleEntries ?? [],
+    imageSourceUrl: resolveHttpsUrl(input.imageSourceUrl, sourceUrl)
+  });
   const candidate = extractedCandidateSchema.parse({
     action: "create_publication",
     externalId: compact(input.externalId, 500),
-    payload: {
-      kind: "publication",
-      organizationId: null,
-      organizationName: compact(input.organizationName, 180) ?? input.profile.organizationName,
-      targetPublicationId: null,
-      type: input.type ?? "news",
-      title,
-      description,
-      categorySlug: input.profile.categorySlug,
-      startsAt: input.startsAt ?? null,
-      endsAt: input.endsAt ?? null,
-      validUntil: input.validUntil ?? null,
-      place: compact(input.place, 300),
-      priceText: compact(input.priceText, 120),
-      isFree: input.isFree ?? false,
-      ageLimit: compact(input.ageLimit, 40),
-      contactPhone: compact(input.contactPhone, 80),
-      scheduleEntries: input.scheduleEntries ?? [],
-      imageSourceUrl: resolveHttpsUrl(input.imageSourceUrl, sourceUrl)
-    },
+    payload,
     evidence,
     warnings: uniqueWarnings([
       ...(input.warnings ?? []),
@@ -531,6 +557,7 @@ function eventBatch(node: Record<string, unknown>, baseUrl: string, profile: Sou
     description,
     startsAt,
     endsAt,
+    sourcePublishedAt: toMoscowSourcePublishedAt(node.datePublished),
     place,
     priceText: offer.priceText,
     isFree: offer.isFree,
@@ -552,6 +579,7 @@ function articleBatch(node: Record<string, unknown>, baseUrl: string, profile: S
   if (!title) return null;
   const description = richestText(node.articleBody, node.description, node.text);
   const published = stringValue(node.datePublished);
+  const sourcePublishedAt = toMoscowSourcePublishedAt(published);
   const sourceText = [title, description, published].filter(Boolean).join("\n");
   return createClosedPublicationBatch({
     sourceUrl,
@@ -561,6 +589,7 @@ function articleBatch(node: Record<string, unknown>, baseUrl: string, profile: S
     type: "news",
     title,
     description,
+    sourcePublishedAt,
     imageSourceUrl: imageUrl(node, sourceUrl),
     organizationName: organizationNameValue(node.publisher, profile.organizationName),
     warnings: [
@@ -586,6 +615,7 @@ function offerBatch(node: Record<string, unknown>, baseUrl: string, profile: Sou
     title,
     description,
     validUntil: offer.validUntil,
+    sourcePublishedAt: toMoscowSourcePublishedAt(node.datePublished),
     priceText: offer.priceText,
     isFree: offer.isFree,
     imageSourceUrl: imageUrl(node, sourceUrl),
@@ -609,6 +639,7 @@ function unknownJsonLdBatch(node: Record<string, unknown>, baseUrl: string, prof
     externalId: stringValue(node["@id"]) ?? sourceUrl,
     title,
     description,
+    sourcePublishedAt: toMoscowSourcePublishedAt(node.datePublished),
     imageSourceUrl: imageUrl(node, sourceUrl),
     organizationName: organizationNameValue(node.publisher, profile.organizationName),
     warnings: [
@@ -730,6 +761,7 @@ export function parseRssCandidateBatches(xml: string, feedUrl: string, profile: 
       4000
     );
     const published = cleanMarkup(tagValue(entry, ["pubDate", "published", "updated", "dc:date"]) ?? "", 120);
+    const sourcePublishedAt = toMoscowSourcePublishedAt(published);
     const externalId = cleanMarkup(tagValue(entry, ["guid", "id"]) ?? "", 500) ?? itemUrl;
     const sourceText = [title, description, published, itemUrl].filter(Boolean).join("\n");
     const batch = createClosedPublicationBatch({
@@ -740,6 +772,7 @@ export function parseRssCandidateBatches(xml: string, feedUrl: string, profile: 
       type: "news",
       title,
       description,
+      sourcePublishedAt,
       imageSourceUrl: rssImageUrl(entry, itemUrl),
       warnings: [
         "RSS/Atom-материал оставлен в закрытой очереди до проверки типа и актуальности.",

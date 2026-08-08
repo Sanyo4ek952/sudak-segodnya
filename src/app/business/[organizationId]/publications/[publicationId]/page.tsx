@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import {
   getBusinessOrganization,
   getBusinessPublication,
-  getPublicationCategories
+  getPublicationCategories,
+  saveBusinessPublicationAction
 } from "@/features/business-cabinet/model/actions";
 import { PublicationForm } from "@/features/business-cabinet/ui/publication-form";
 import { Card, CardContent } from "@/shared/ui/card";
@@ -44,6 +45,7 @@ export default async function EditPublicationPage({ params }: EditPublicationPag
             categories={categories}
             draftPublicationId={publication.id}
             clientRequestId={publication.client_request_id ?? randomUUID()}
+            saveAction={saveBusinessPublicationAction}
           />
         </CardContent>
       </Card>

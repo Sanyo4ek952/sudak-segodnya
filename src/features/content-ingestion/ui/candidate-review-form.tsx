@@ -9,6 +9,7 @@ import type {
 } from "@/features/content-ingestion/model/contracts";
 import { initialContentIngestionActionState } from "@/features/content-ingestion/model/types";
 import { reviewContentCandidateAction } from "@/features/content-ingestion/model/actions";
+import { importedNewsValidUntil } from "@/features/content-ingestion/model/candidate-rules";
 import { ContentIngestionActionMessage } from "@/features/content-ingestion/ui/content-ingestion-action-message";
 import type { PublicationScheduleEntryInput } from "@/entities/publication/model/publication-contract";
 import { Button } from "@/shared/ui/button";
@@ -68,6 +69,12 @@ function toLocalDateTime(value: string | null) {
     hour12: false
   });
   return formatter.format(date).replace(" ", "T");
+}
+
+function newsValidityFromLocalSource(value: string) {
+  if (!value) return "";
+  const withSeconds = value.length === 16 ? `${value}:00` : value;
+  return toLocalDateTime(importedNewsValidUntil(`${withSeconds}+03:00`));
 }
 
 function createEmptyScheduleEntry(sortOrder: number): PublicationScheduleEntryInput {
@@ -480,6 +487,9 @@ export function CandidateReviewForm({
   const [startsAt, setStartsAt] = useState(toLocalDateTime(publicationPayload?.startsAt ?? null));
   const [endsAt, setEndsAt] = useState(toLocalDateTime(publicationPayload?.endsAt ?? null));
   const [validUntil, setValidUntil] = useState(toLocalDateTime(publicationPayload?.validUntil ?? null));
+  const [sourcePublishedAt, setSourcePublishedAt] = useState(
+    toLocalDateTime(publicationPayload?.sourcePublishedAt ?? null)
+  );
   const [place, setPlace] = useState(
     publicationPayload?.place
       ?? ((publicationType === "event" || publicationType === "regular") ? initialOrganization?.address ?? "" : "")
@@ -594,6 +604,14 @@ export function CandidateReviewForm({
     if (value !== "news" && !contactPhone.trim()) {
       setContactPhone(selectedOrganization?.phone ?? "");
     }
+    if (value === "news" && sourcePublishedAt) {
+      setValidUntil(newsValidityFromLocalSource(sourcePublishedAt));
+    }
+  }
+
+  function changeSourcePublishedAt(value: string) {
+    setSourcePublishedAt(value);
+    setValidUntil(newsValidityFromLocalSource(value));
   }
 
   const usesEventDates = publicationType === "event";
@@ -839,11 +857,37 @@ export function CandidateReviewForm({
                     </FormField>
                   </div>
                 ) : null}
+                {publicationType === "news" ? (
+                  <FormField
+                    id="candidate-source-published-at"
+                    label="Дата публикации в источнике"
+                    hint="Нужна для подтверждения актуальности. Срок новости рассчитывается автоматически на 7 дней."
+                    error={errors.sourcePublishedAt}
+                  >
+                    <Input
+                      id="candidate-source-published-at"
+                      type="datetime-local"
+                      name="sourcePublishedAt"
+                      value={sourcePublishedAt}
+                      onChange={(event) => changeSourcePublishedAt(event.target.value)}
+                      step="60"
+                      aria-invalid={Boolean(errors.sourcePublishedAt)}
+                      aria-describedby={fieldDescriptionId(
+                        "candidate-source-published-at",
+                        errors.sourcePublishedAt,
+                        true
+                      )}
+                      disabled={!editable}
+                    />
+                  </FormField>
+                ) : (
+                  <input type="hidden" name="sourcePublishedAt" value={sourcePublishedAt} />
+                )}
                 {usesValidity ? (
                   <FormField
                     id="candidate-valid-until"
                     label="Актуально до"
-                    hint={publicationType === "news" ? "Публично будет показана дата публикации, а этот срок только уберёт устаревшую новость из ленты." : undefined}
+                    hint={publicationType === "news" ? "Рассчитывается автоматически: 7 дней от даты публикации в источнике." : undefined}
                     error={errors.validUntil}
                   >
                     <Input
@@ -852,6 +896,7 @@ export function CandidateReviewForm({
                       name="validUntil"
                       value={validUntil}
                       onChange={(event) => setValidUntil(event.target.value)}
+                      readOnly={publicationType === "news"}
                       step="60"
                       aria-invalid={Boolean(errors.validUntil)}
                       aria-describedby={fieldDescriptionId("candidate-valid-until", errors.validUntil, publicationType === "news")}
@@ -1000,6 +1045,7 @@ export function CandidateReviewForm({
               <input type="hidden" name="startsAt" value={startsAt} />
               <input type="hidden" name="endsAt" value={endsAt} />
               <input type="hidden" name="validUntil" value={validUntil} />
+              <input type="hidden" name="sourcePublishedAt" value={sourcePublishedAt} />
               <input type="hidden" name="place" value={place} />
               <input type="hidden" name="priceText" value={priceText} />
               <input type="hidden" name="ageLimit" value={ageLimit} />

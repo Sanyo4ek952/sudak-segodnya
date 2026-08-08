@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PublicationCandidatePayload } from "@/features/content-ingestion/model/contracts";
 import {
   applyOrganizationDefaults,
+  createOrganizationIdentityKey,
   resolveImportOrganization
 } from "@/features/content-ingestion/model/organization-resolution";
 
@@ -42,6 +43,11 @@ const payload: PublicationCandidatePayload = {
 };
 
 describe("import organization resolution", () => {
+  it("creates one stable identity key for equivalent organization names", () => {
+    expect(createOrganizationIdentityKey("  АРТ-КЛАСТЕР «ТАВРИДА»  "))
+      .toBe(createOrganizationIdentityKey("Арт кластер Таврида"));
+  });
+
   it("prefers an explicit source binding over a name from imported content", () => {
     const result = resolveImportOrganization({
       payload,

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "report:import-freshness": "node scripts/report-imported-publication-freshness.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",

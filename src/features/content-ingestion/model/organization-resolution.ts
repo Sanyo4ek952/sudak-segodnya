@@ -23,6 +23,10 @@ export function normalizeOrganizationName(value: string) {
     .replace(/\s+/g, " ");
 }
 
+export function createOrganizationIdentityKey(value: string) {
+  return normalizeOrganizationName(value);
+}
+
 export function resolveImportOrganization({
   payload,
   sourceOrganizationId,

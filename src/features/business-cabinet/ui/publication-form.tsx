@@ -3,13 +3,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { savePublicationAction } from "@/features/business-cabinet/model/actions";
 import {
   businessPublicationFieldRules,
   businessPublicationTypeLabels,
   initialBusinessActionState
 } from "@/features/business-cabinet/model/types";
-import type { BusinessPublication } from "@/features/business-cabinet/model/types";
+import type {
+  BusinessActionState,
+  BusinessPublication
+} from "@/features/business-cabinet/model/types";
 import type { PublicationScheduleEntryInput } from "@/entities/publication/model/publication-contract";
 import type { Tables } from "@/shared/api/supabase/database.types";
 import { Badge } from "@/shared/ui/badge";
@@ -98,6 +100,7 @@ export function PublicationForm({
   organizationAddress,
   draftPublicationId,
   clientRequestId,
+  saveAction,
   isAdminEditor = false
 }: {
   organizationId: string;
@@ -106,9 +109,13 @@ export function PublicationForm({
   organizationAddress?: string | null;
   draftPublicationId: string;
   clientRequestId: string;
+  saveAction: (
+    state: BusinessActionState,
+    formData: FormData
+  ) => Promise<BusinessActionState>;
   isAdminEditor?: boolean;
 }) {
-  const [state, action] = useActionState(savePublicationAction, initialBusinessActionState);
+  const [state, action] = useActionState(saveAction, initialBusinessActionState);
   const [step, setStep] = useState(0);
   const [type, setType] = useState<Tables<"publications">["type"]>(publication?.type ?? "event");
   const [title, setTitle] = useState(publication?.title ?? "");

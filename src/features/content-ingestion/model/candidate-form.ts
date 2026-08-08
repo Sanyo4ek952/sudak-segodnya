@@ -3,6 +3,7 @@ import type {
   ContentCandidatePayload,
   PublicationCandidatePayload
 } from "@/features/content-ingestion/model/contracts";
+import { applyImportedNewsValidity } from "@/features/content-ingestion/model/candidate-rules";
 
 export const contentCandidateFormIntents = [
   "save_changes",
@@ -34,7 +35,7 @@ export function normalizePublicationCandidateForType(
   if (payload.type === "regular") return withoutEventInterval;
 
   if (payload.type === "news") {
-    return {
+    return applyImportedNewsValidity({
       ...withoutEventInterval,
       place: null,
       priceText: null,
@@ -42,7 +43,7 @@ export function normalizePublicationCandidateForType(
       ageLimit: null,
       contactPhone: null,
       scheduleEntries: []
-    };
+    }) as PublicationCandidatePayload;
   }
 
   return {
@@ -119,6 +120,18 @@ export function validateCandidateForIntent({
     if (!payload.place) {
       setError(errors, "place", "Укажите место проведения мероприятия.");
     }
+  } else if (payload.type === "news" && !payload.sourcePublishedAt) {
+    setError(
+      errors,
+      "sourcePublishedAt",
+      "Укажите подтверждённую дату публикации в первичном источнике."
+    );
+  } else if (
+    payload.type === "news"
+    && payload.sourcePublishedAt
+    && Date.parse(payload.sourcePublishedAt) > now.getTime()
+  ) {
+    setError(errors, "sourcePublishedAt", "Дата публикации в источнике не может быть в будущем.");
   } else if (!payload.validUntil) {
     setError(errors, "validUntil", "Укажите срок актуальности публикации.");
   } else if (Date.parse(payload.validUntil) <= now.getTime()) {

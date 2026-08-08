@@ -7,6 +7,7 @@ import {
   parseJsonLdCandidateBatches,
   parseRssCandidateBatches,
   toMoscowOffsetIso,
+  toMoscowSourcePublishedAt,
   type SourceCandidateBatch,
   type SourceProfile
 } from "@/features/content-ingestion/server/source-parsers";
@@ -320,6 +321,7 @@ function tavridaCardBatches(fetched: SafeFetchResult, profile: SourceProfile) {
       type: "news",
       title,
       description,
+      sourcePublishedAt: toMoscowSourcePublishedAt(published),
       imageSourceUrl: imageFromHtml(body, sourceUrl),
       warnings: [
         "Материал подготовлен адаптером официального сайта Тавриды и оставлен в закрытой очереди.",
@@ -385,6 +387,7 @@ function tavridaDetailBatches(fetched: SafeFetchResult, profile: SourceProfile) 
     type: isEvent ? "event" : "news",
     title,
     description,
+    sourcePublishedAt: toMoscowSourcePublishedAt(published),
     startsAt: isEvent ? eventInterval?.startsAt : null,
     endsAt: isEvent ? eventInterval?.endsAt : null,
     priceText,
@@ -576,6 +579,7 @@ function unknownHtmlBatch(fetched: SafeFetchResult, profile: SourceProfile) {
     type: isEvent ? "event" : "news",
     title,
     description,
+    sourcePublishedAt: toMoscowSourcePublishedAt(published),
     startsAt: isEvent ? eventInterval?.startsAt : null,
     endsAt: isEvent ? eventInterval?.endsAt : null,
     imageSourceUrl: imageFromHtml(fetched.body, fetched.finalUrl),

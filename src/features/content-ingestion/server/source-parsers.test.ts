@@ -4,6 +4,7 @@ import {
   parseJsonLdCandidateBatches,
   parseRssCandidateBatches,
   toMoscowOffsetIso,
+  toMoscowSourcePublishedAt,
   type SourceProfile
 } from "@/features/content-ingestion/server/source-parsers";
 
@@ -36,7 +37,8 @@ describe("deterministic content source parsers", () => {
     if (candidate.payload.kind === "publication") {
       expect(candidate.payload.title).toBe("Новая выставка \"Судак\"");
       expect(candidate.payload.type).toBe("news");
-      expect(candidate.payload.validUntil).toBeNull();
+      expect(candidate.payload.sourcePublishedAt).toBe("2026-08-04T12:00:00+03:00");
+      expect(candidate.payload.validUntil).toBe("2026-08-11T12:00:00+03:00");
       expect(candidate.payload.imageSourceUrl).toBe("https://libsudak.ru/images/exhibition.jpg");
     }
     expect(candidate.warnings.join(" ")).toContain("закрытой очереди");
@@ -52,6 +54,7 @@ describe("deterministic content source parsers", () => {
           "url": "https://www.culture.ru/events/42/sudak",
           "name": "Лекция-экскурсия",
           "description": "Рассказ об истории Судакской крепости.",
+          "datePublished": "2026-08-01T09:00:00Z",
           "startDate": "2026-08-14T07:15:00.000Z",
           "endDate": "2026-08-14T08:00:00.000Z",
           "location": {"@type":"Place","name":"Судакская крепость","address":"г. Судак"},
@@ -67,6 +70,7 @@ describe("deterministic content source parsers", () => {
     if (candidate.payload.kind === "publication") {
       expect(candidate.payload.startsAt).toBe("2026-08-14T10:15:00+03:00");
       expect(candidate.payload.endsAt).toBe("2026-08-14T11:00:00+03:00");
+      expect(candidate.payload.sourcePublishedAt).toBe("2026-08-01T12:00:00+03:00");
       expect(candidate.payload.organizationName).toBe("Судакская крепость");
       expect(candidate.payload.isFree).toBe(true);
       expect(candidate.payload.priceText).toBe("0 ₽");
@@ -162,11 +166,14 @@ describe("deterministic content source parsers", () => {
       "headline":"Подробная городская новость",
       "description":"Короткий анонс.",
       "articleBody":"Полный текст новости с контекстом, условиями участия и полезными подробностями.",
+      "datePublished":"2026-08-04T09:00:00Z",
       "image":["http://unsafe.example.org/first.jpg", {"contentUrl":"https://example.org/full.jpg"}]
     }</script>`, "https://example.org/news", cultureProfile);
     const candidate = batch.candidates[0];
     if (candidate.payload.kind === "publication") {
       expect(candidate.payload.description).toContain("Полный текст новости");
+      expect(candidate.payload.sourcePublishedAt).toBe("2026-08-04T12:00:00+03:00");
+      expect(candidate.payload.validUntil).toBe("2026-08-11T12:00:00+03:00");
       expect(candidate.payload.imageSourceUrl).toBe("https://example.org/full.jpg");
     }
   });
@@ -187,5 +194,10 @@ describe("deterministic content source parsers", () => {
   it("does not reinterpret an explicit timezone as local time", () => {
     expect(toMoscowOffsetIso("2026-08-04T12:00:00+03:00")).toBe("2026-08-04T12:00:00+03:00");
     expect(toMoscowOffsetIso("2026-08-04", true)).toBe("2026-08-04T23:59:59+03:00");
+  });
+
+  it("parses Russian source publication dates in Moscow time", () => {
+    expect(toMoscowSourcePublishedAt("4 марта 2026 года"))
+      .toBe("2026-03-04T00:00:00+03:00");
   });
 });

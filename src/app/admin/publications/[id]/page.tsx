@@ -4,7 +4,10 @@ import {
   getAdminOrganization,
   getAdminPublication
 } from "@/features/admin-quality-control/model/actions";
-import { getPublicationCategories } from "@/features/business-cabinet/model/actions";
+import {
+  getPublicationCategories,
+  saveAdminPublicationAction
+} from "@/features/business-cabinet/model/actions";
 import { PublicationForm } from "@/features/business-cabinet/ui/publication-form";
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
@@ -48,6 +51,7 @@ export default async function AdminPublicationEditPage({
             categories={categories}
             draftPublicationId={publication.id}
             clientRequestId={publication.client_request_id ?? randomUUID()}
+            saveAction={saveAdminPublicationAction}
             isAdminEditor
           />
         </CardContent>

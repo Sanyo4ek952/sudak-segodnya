@@ -31,7 +31,8 @@ describe("content candidate form rules", () => {
     const normalized = normalizePublicationCandidateForType({
       ...base,
       type: "news",
-      validUntil: "2026-09-10T23:59:00+03:00"
+      validUntil: "2026-09-10T23:59:00+03:00",
+      sourcePublishedAt: "2026-09-01T12:00:00+03:00"
     });
 
     expect(normalized.startsAt).toBeNull();
@@ -39,6 +40,22 @@ describe("content candidate form rules", () => {
     expect(normalized.place).toBeNull();
     expect(normalized.priceText).toBeNull();
     expect(normalized.contactPhone).toBeNull();
+    expect(normalized.validUntil).toBe("2026-09-08T12:00:00+03:00");
+  });
+
+  it("blocks publishing news without a reliable source date", () => {
+    const errors = validateCandidateForIntent({
+      payload: normalizePublicationCandidateForType({
+        ...base,
+        type: "news",
+        validUntil: null,
+        sourcePublishedAt: null
+      }),
+      action: "create_publication",
+      intent: "approve_publish",
+      now: new Date("2026-08-08T12:00:00+03:00")
+    });
+    expect(errors.sourcePublishedAt).toMatch(/источник/i);
   });
 
   it("allows incomplete data to be saved without publishing it", () => {
