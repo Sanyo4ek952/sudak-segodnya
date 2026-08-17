@@ -10,6 +10,7 @@ import {
   vkExternalItemStatusLabels,
   type VkExternalItemStatus
 } from "@/features/vk-import/model/types";
+import { vkFallbackImagePath } from "@/features/vk-import/model/media";
 import { VkImportNavigation } from "@/features/vk-import/ui/vk-import-navigation";
 import { RunVkImportForm } from "@/features/vk-import/ui/vk-source-controls";
 import { formatDateTime } from "@/shared/lib/date";
@@ -35,13 +36,6 @@ type AdminVkQueuePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-type VkMediaPhoto = {
-  type: "photo";
-  sourceUrl: string;
-  width: number;
-  height: number;
-};
-
 function firstValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -58,22 +52,10 @@ function statusVariant(status: VkExternalItemStatus) {
   return "error";
 }
 
-function parseMedia(value: unknown): VkMediaPhoto[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const candidate = item as Record<string, unknown>;
-    return candidate.type === "photo"
-      && typeof candidate.sourceUrl === "string"
-      && candidate.sourceUrl.startsWith("https://")
-      ? [{
-          type: "photo" as const,
-          sourceUrl: candidate.sourceUrl,
-          width: typeof candidate.width === "number" ? candidate.width : 0,
-          height: typeof candidate.height === "number" ? candidate.height : 0
-        }]
-      : [];
-  });
+function containsVideo(value: unknown) {
+  return Array.isArray(value) && value.some((item) => (
+    Boolean(item) && typeof item === "object" && (item as Record<string, unknown>).type === "video"
+  ));
 }
 
 function queueHref(status: VkExternalItemStatus, page?: number) {
@@ -135,7 +117,8 @@ export default async function AdminVkQueuePage({ searchParams }: AdminVkQueuePag
       ) : (
         <div className="grid gap-4">
           {result.items.map((item) => {
-            const media = parseMedia(item.media);
+            const media = item.stagedMedia;
+            const hasVideo = containsVideo(item.media);
             return (
               <Card key={item.id}>
                 <CardContent className="space-y-4">
@@ -155,26 +138,48 @@ export default async function AdminVkQueuePage({ searchParams }: AdminVkQueuePag
 
                   {media.length > 0 ? (
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                      {media.map((photo, index) => (
+                      {media.map((visual, index) => (
                         <a
-                          key={`${photo.sourceUrl}-${index}`}
-                          href={photo.sourceUrl}
+                          key={`${visual.sourceUrl}-${index}`}
+                          href={item.source_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="overflow-hidden rounded-lg border border-border bg-surface-muted"
+                          className="relative overflow-hidden rounded-lg border border-border bg-surface-muted"
                         >
                           <img
-                            src={photo.sourceUrl}
-                            alt="Изображение из VK-поста"
-                            width={photo.width || 640}
-                            height={photo.height || 360}
+                            src={visual.signedUrl}
+                            alt={visual.kind === "video_preview" ? "Постер видео из VK-поста" : "Изображение из VK-поста"}
+                            width={visual.width || 640}
+                            height={visual.height || 360}
                             loading="lazy"
                             referrerPolicy="no-referrer"
                             className="aspect-video h-full w-full object-cover"
                           />
+                          {visual.kind === "video_preview" ? (
+                            <span className="absolute bottom-2 left-2 rounded-md bg-surface/90 px-2 py-1 text-xs font-medium text-foreground shadow-popover">
+                              ▶ Видео
+                            </span>
+                          ) : null}
                         </a>
                       ))}
                     </div>
+                  ) : (
+                    <div className="max-w-md overflow-hidden rounded-lg border border-border bg-surface-muted">
+                      <img
+                        src={vkFallbackImagePath}
+                        alt="Заглушка: набережная Судака"
+                        width={1672}
+                        height={941}
+                        loading="lazy"
+                        className="aspect-video h-full w-full object-cover"
+                      />
+                    </div>
+                  )}
+
+                  {hasVideo ? (
+                    <p className="text-sm text-foreground-muted">
+                      Видео остаётся в VK; сохранённый постер используется как изображение публикации.
+                    </p>
                   ) : null}
 
                   <div className="flex flex-wrap items-center gap-3">

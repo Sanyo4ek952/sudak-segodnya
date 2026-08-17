@@ -3,7 +3,7 @@ import { isCurrentUserAdmin } from "@/features/admin-application-review/model/ac
 import { createSupabaseServerClient } from "@/shared/api/supabase/server";
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
-import { SectionNavigation } from "@/widgets/app-shell/ui/section-navigation";
+import { WorkspaceShell } from "@/widgets/app-shell/ui/workspace-shell";
 
 const adminNavigationItems = [
   { label: "Обзор", href: "/admin", exact: true },
@@ -51,9 +51,11 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="space-y-6">
-      <SectionNavigation label="Навигация админ-панели" items={adminNavigationItems} />
+    <WorkspaceShell
+      navigationLabel="Навигация админ-панели"
+      navigationItems={adminNavigationItems}
+    >
       {children}
-    </div>
+    </WorkspaceShell>
   );
 }

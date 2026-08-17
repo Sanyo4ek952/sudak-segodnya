@@ -1,10 +1,14 @@
 import { createClient } from "npm:@supabase/supabase-js@2.109.0";
 import {
   fetchVkWall,
+  filterFreshVkPosts,
   runVkSourceImports,
   type NormalizedVkPost,
+  type VkMedia,
   type VkExternalSource
 } from "../_shared/vk.ts";
+import { fetchVkMediaImage } from "../_shared/vk-media.ts";
+import { resolveVkVideoLink } from "../_shared/vk-embed.ts";
 
 const responseHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -13,6 +17,65 @@ const responseHeaders = {
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: responseHeaders });
+}
+
+type VkMediaTask = {
+  externalItemId: string;
+  postExternalId: string;
+  mediaKey: string;
+  kind: "photo" | "video_preview";
+  sourceUrl: string;
+  sourceUrls: string[];
+  width: number;
+  height: number;
+  sortOrder: number;
+};
+
+function safePathSegment(value: string) {
+  return value.replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 160) || "media";
+}
+
+function mediaTask(
+  externalItemId: string,
+  postExternalId: string,
+  media: VkMedia,
+  sortOrder: number
+): VkMediaTask | null {
+  const sourceUrl = media.type === "photo" ? media.sourceUrl : media.previewSourceUrl;
+  if (!sourceUrl) return null;
+  const sourceUrls = media.type === "photo"
+    ? [sourceUrl]
+    : media.previewSourceUrls.length > 0
+      ? media.previewSourceUrls
+      : [sourceUrl];
+  return {
+    externalItemId,
+    postExternalId,
+    mediaKey: `${media.type}:${media.externalId ?? sortOrder}`,
+    kind: media.type === "photo" ? "photo" : "video_preview",
+    sourceUrl,
+    sourceUrls,
+    width: media.width,
+    height: media.height,
+    sortOrder
+  };
+}
+
+async function mapWithConcurrency<T, R>(
+  values: T[],
+  concurrency: number,
+  callback: (value: T) => Promise<R>
+) {
+  const results = new Array<R>(values.length);
+  let cursor = 0;
+  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, async () => {
+    while (cursor < values.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await callback(values[index]);
+    }
+  }));
+  return results;
 }
 
 async function digestSecret(value: string) {
@@ -65,10 +128,35 @@ Deno.serve(async (request) => {
 
   const result = await runVkSourceImports({
     sources,
-    fetchPosts: (source) => fetchVkWall({ domain: source.domain, accessToken, count: 20 }),
+    fetchPosts: async (source) => filterFreshVkPosts(
+      await fetchVkWall({ domain: source.domain, accessToken, count: 20 })
+    ),
     persistPosts: async (source, posts: NormalizedVkPost[]) => {
-      if (posts.length === 0) return 0;
-      const { data, error } = await supabase
+      if (posts.length === 0) {
+        return { insertedCount: 0, savedMediaCount: 0, failedMediaCount: 0 };
+      }
+      const unresolvedVideos = posts.flatMap((post) => post.media.filter((media) => (
+        media.type === "video" && !media.embedUrl && media.sourceUrl
+      )));
+      await mapWithConcurrency(unresolvedVideos, 4, async (media) => {
+        if (media.type !== "video" || !media.sourceUrl) return;
+        try {
+          const resolved = await resolveVkVideoLink({ sourceUrl: media.sourceUrl, accessToken });
+          media.embedUrl = resolved.embedUrl;
+          media.title = media.title ?? resolved.title;
+          media.width = media.width || resolved.width || 0;
+          media.height = media.height || resolved.height || 0;
+          if (resolved.thumbnailUrl && !media.previewSourceUrls.includes(resolved.thumbnailUrl)) {
+            media.previewSourceUrls.unshift(resolved.thumbnailUrl);
+            media.previewSourceUrl = media.previewSourceUrl ?? resolved.thumbnailUrl;
+          }
+        } catch {
+          media.resolveError = "VK-плеер недоступен. Повторите подготовку в редакторе кандидата.";
+          // The post is still imported. This media item remains pending/error in
+          // the candidate editor and can be prepared again independently.
+        }
+      });
+      const { data: insertedRows, error } = await supabase
         .from("external_items")
         .upsert(posts.map((post) => ({
           source_id: source.id,
@@ -85,7 +173,103 @@ Deno.serve(async (request) => {
         })
         .select("id");
       if (error) throw new Error("Failed to store VK items");
-      return data?.length ?? 0;
+
+      const externalIds = posts.map((post) => post.externalId);
+      const { data: itemRows, error: itemError } = await supabase
+        .from("external_items")
+        .select("id, external_id")
+        .eq("source_id", source.id)
+        .in("status", ["new", "imported"])
+        .in("external_id", externalIds);
+      if (itemError) throw new Error("Failed to load stored VK items");
+
+      const itemIdByExternalId = new Map((itemRows ?? []).map((item) => [item.external_id, item.id]));
+      const itemIds = (itemRows ?? []).map((item) => item.id);
+      const { data: existingMedia, error: existingMediaError } = itemIds.length > 0
+        ? await supabase
+          .from("external_item_media")
+          .select("external_item_id, media_key")
+          .in("external_item_id", itemIds)
+        : { data: [], error: null };
+      if (existingMediaError) throw new Error("Failed to load stored VK media");
+      const existingKeys = new Set((existingMedia ?? []).map((media) => (
+        `${media.external_item_id}:${media.media_key}`
+      )));
+
+      let unavailableMediaCount = 0;
+      const mediaTasks: VkMediaTask[] = [];
+      for (const post of posts) {
+        const externalItemId = itemIdByExternalId.get(post.externalId);
+        if (!externalItemId) continue;
+        post.media.forEach((media, sortOrder) => {
+          const task = mediaTask(externalItemId, post.externalId, media, sortOrder);
+          if (!task) {
+            unavailableMediaCount += 1;
+            return;
+          }
+          if (!existingKeys.has(`${externalItemId}:${task.mediaKey}`)) mediaTasks.push(task);
+        });
+      }
+
+      const stored = await mapWithConcurrency(mediaTasks, 4, async (task) => {
+        try {
+          let selectedSourceUrl = task.sourceUrl;
+          let image: Awaited<ReturnType<typeof fetchVkMediaImage>> | null = null;
+          for (const sourceUrl of task.sourceUrls) {
+            try {
+              image = await fetchVkMediaImage({ sourceUrl });
+              selectedSourceUrl = sourceUrl;
+              break;
+            } catch {
+              // VK video posters can contain expired CDN variants. Try the
+              // remaining image and first-frame sizes before giving up.
+            }
+          }
+          if (!image) throw new Error("VK media variants are unavailable");
+          const storagePath = [
+            "sources",
+            source.id,
+            "items",
+            safePathSegment(task.postExternalId),
+            `${safePathSegment(task.mediaKey)}-${image.contentHash}.${image.extension}`
+          ].join("/");
+          const { error: uploadError } = await supabase.storage
+            .from("vk-import-media")
+            .upload(storagePath, image.bytes, {
+              contentType: image.mimeType,
+              upsert: true
+            });
+          if (uploadError) throw new Error("Failed to upload VK media");
+
+          const { error: mediaError } = await supabase.from("external_item_media").insert({
+            external_item_id: task.externalItemId,
+            media_key: task.mediaKey,
+            kind: task.kind,
+            source_url: selectedSourceUrl,
+            bucket_id: "vk-import-media",
+            storage_path: storagePath,
+            width: task.width > 0 ? task.width : null,
+            height: task.height > 0 ? task.height : null,
+            mime_type: image.mimeType,
+            size_bytes: image.sizeBytes,
+            content_hash: image.contentHash,
+            sort_order: task.sortOrder
+          });
+          if (mediaError) {
+            await supabase.storage.from("vk-import-media").remove([storagePath]);
+            throw new Error("Failed to link VK media");
+          }
+          return true;
+        } catch {
+          return false;
+        }
+      });
+
+      return {
+        insertedCount: insertedRows?.length ?? 0,
+        savedMediaCount: stored.filter(Boolean).length,
+        failedMediaCount: unavailableMediaCount + stored.filter((value) => !value).length
+      };
     },
     markSucceeded: async (source, ownerId) => {
       const { error } = await supabase

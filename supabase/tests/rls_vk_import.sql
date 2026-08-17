@@ -2,7 +2,7 @@ begin;
 
 set search_path = public, extensions;
 
-select plan(24);
+select plan(31);
 
 create or replace function pg_temp.statement_raises(statement text)
 returns boolean
@@ -103,6 +103,58 @@ values
     jsonb_build_object('id', 502, 'owner_id', -9001, 'date', extract(epoch from now())::integer)
   );
 
+insert into public.external_item_media (
+  id, external_item_id, media_key, kind, source_url, storage_path,
+  width, height, mime_type, size_bytes, content_hash, sort_order
+)
+values (
+  '52900000-0000-0000-0000-000000000001',
+  '51900000-0000-0000-0000-000000000001',
+  'photo:-9001_7001',
+  'photo',
+  'https://sun9-1.userapi.com/vk-import.jpg',
+  'sources/50900000-0000-0000-0000-000000000001/items/501/photo.jpg',
+  1280,
+  960,
+  'image/jpeg',
+  1024,
+  repeat('a', 64),
+  0
+);
+
+insert into public.external_items (
+  id, source_id, external_id, source_url, text, published_at, media, raw_payload
+)
+values
+  (
+    '51900000-0000-0000-0000-000000000003',
+    '50900000-0000-0000-0000-000000000001',
+    '503',
+    'https://vk.com/wall-9001_503',
+    'Устаревший материал',
+    now() - interval '8 days',
+    '[]'::jsonb,
+    jsonb_build_object('id', 503, 'owner_id', -9001, 'date', extract(epoch from now() - interval '8 days')::integer)
+  ),
+  (
+    '51900000-0000-0000-0000-000000000004',
+    '50900000-0000-0000-0000-000000000001',
+    '504',
+    'https://vk.com/wall-9001_504',
+    'Видео о городе',
+    now(),
+    jsonb_build_array(jsonb_build_object(
+      'type', 'video',
+      'attachmentType', 'video',
+      'sourceUrl', 'https://vk.com/video-9001_8001',
+      'previewSourceUrl', 'https://sun9-1.userapi.com/vk-video.jpg',
+      'width', 1280,
+      'height', 720,
+      'externalId', '-9001_8001'
+    )),
+    jsonb_build_object('id', 504, 'owner_id', -9001, 'date', extract(epoch from now())::integer)
+  );
+
 insert into public.external_items (
   source_id, external_id, source_url, text, published_at, media, raw_payload
 )
@@ -137,6 +189,11 @@ select ok(
   'anonymous users cannot read the VK queue'
 );
 
+select ok(
+  pg_temp.statement_raises('select count(*) from public.external_item_media'),
+  'anonymous users cannot read staged VK media'
+);
+
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000093', true);
@@ -151,6 +208,12 @@ select is(
   (select count(*) from public.external_items where source_id = '50900000-0000-0000-0000-000000000001'),
   0::bigint,
   'ordinary authenticated users see no VK queue items through RLS'
+);
+
+select is(
+  (select count(*) from public.external_item_media),
+  0::bigint,
+  'ordinary authenticated users see no staged VK media through RLS'
 );
 
 select ok(
@@ -186,6 +249,12 @@ select is(
   'administrator can read VK sources'
 );
 
+select is(
+  (select count(*) from public.external_item_media where external_item_id = '51900000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'administrator can read staged VK media'
+);
+
 select lives_ok(
   $$ insert into public.external_sources (
     platform, domain, name, url, is_active, created_by
@@ -208,6 +277,34 @@ select ok(
   'source domain uniqueness is case-insensitive'
 );
 
+select ok(
+  pg_temp.statement_raises($$ select public.prepare_vk_external_item_for_review(
+    '51900000-0000-0000-0000-000000000003'
+  ) $$),
+  'stale VK items cannot enter the publication review flow'
+);
+
+select lives_ok(
+  $$ select public.prepare_vk_external_item_for_review(
+    '51900000-0000-0000-0000-000000000004'
+  ) $$,
+  'video-only VK items can enter the publication review flow'
+);
+
+select is(
+  (
+    select candidate.payload ->> 'imageSourceUrl'
+    from public.content_candidates candidate
+    where candidate.id = (
+      select item.content_candidate_id
+      from public.external_items item
+      where item.id = '51900000-0000-0000-0000-000000000004'
+    )
+  ),
+  'https://sun9-1.userapi.com/vk-video.jpg',
+  'video-only VK items use the video poster as candidate image'
+);
+
 select isnt(
   public.prepare_vk_external_item_for_review('51900000-0000-0000-0000-000000000001'),
   null::uuid,
@@ -218,6 +315,20 @@ select isnt(
   (select content_candidate_id from public.external_items where id = '51900000-0000-0000-0000-000000000001'),
   null::uuid,
   'prepared VK item is linked to the existing content candidate workflow'
+);
+
+select is(
+  (
+    select candidate.payload ->> 'imageSourceUrl'
+    from public.content_candidates candidate
+    where candidate.id = (
+      select item.content_candidate_id
+      from public.external_items item
+      where item.id = '51900000-0000-0000-0000-000000000001'
+    )
+  ),
+  'https://sun9-1.userapi.com/vk-import.jpg',
+  'VK candidate prefers retained media over a stale source payload URL'
 );
 
 select is(

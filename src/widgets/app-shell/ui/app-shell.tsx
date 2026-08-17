@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { isWorkspacePath } from "@/shared/config/navigation";
 import { cn } from "@/shared/lib/cn";
 import { AppBottomNavigation } from "@/widgets/app-shell/ui/app-bottom-navigation";
 import { AppTopBar } from "@/widgets/app-shell/ui/app-top-bar";
@@ -14,13 +15,15 @@ type AppShellProps = {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const hasBottomNavigation = !pathname.startsWith("/admin");
+  const isWorkspace = isWorkspacePath(pathname);
 
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground">
       <AppTopBar />
       <main
         className={cn(
-          "mx-auto w-full max-w-content flex-1 px-4 pt-4 sm:px-6 lg:px-8 lg:pb-10 lg:pt-6",
+          "mx-auto w-full flex-1 px-4 pt-4 sm:px-6 lg:px-8 lg:pb-10 lg:pt-6",
+          isWorkspace ? "max-w-dashboard" : "max-w-content",
           hasBottomNavigation
             ? "pb-[calc(7rem+env(safe-area-inset-bottom))]"
             : "pb-[calc(1.5rem+env(safe-area-inset-bottom))]"

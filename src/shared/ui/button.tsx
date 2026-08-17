@@ -6,11 +6,11 @@ type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "destructiv
 type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-primary-foreground hover:opacity-95",
-  secondary: "bg-secondary text-foreground hover:opacity-95",
-  outline: "border border-border bg-surface text-foreground hover:bg-surface-muted",
-  ghost: "bg-transparent text-foreground hover:bg-surface-muted",
-  destructive: "bg-error text-primary-foreground hover:opacity-95",
+  primary: "bg-primary text-primary-foreground shadow-sm hover:bg-primary-600",
+  secondary: "bg-sand text-foreground hover:bg-sand/80",
+  outline: "border border-border bg-surface text-foreground hover:border-primary/25 hover:bg-background",
+  ghost: "bg-transparent text-foreground hover:bg-surface-muted/55",
+  destructive: "bg-error text-primary-foreground shadow-sm hover:bg-error/90",
   link: "h-auto p-0 text-primary underline-offset-4 hover:underline"
 };
 
@@ -22,7 +22,7 @@ const sizeClasses: Record<ButtonSize, string> = {
 };
 
 const baseClasses =
-  "inline-flex items-center justify-center gap-2 rounded-md font-medium transition disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
 
 type CommonProps = {
   variant?: ButtonVariant;

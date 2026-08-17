@@ -20,14 +20,19 @@ export async function WeatherCompact() {
   const nextHour = forecast?.hours[0] ?? null;
 
   return (
-    <Link href="/weather" className="block">
-      <Card>
-        <CardContent className="flex items-center justify-between gap-4 py-2.5">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground-muted">Погода в Судаке</p>
+    <Link
+      href="/weather"
+      className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+    >
+      <Card className="border-primary/10 shadow-none transition-shadow hover:shadow-card">
+        <CardContent className="flex items-center justify-between gap-3 py-3 sm:gap-4">
+          <div className="min-w-0 space-y-0.5">
+            <p className="text-xs font-medium text-foreground-muted">
+              Погода в Судаке
+            </p>
             {forecast ? (
               <>
-                <p className="truncate text-lg font-semibold">
+                <p className="truncate text-lg font-semibold leading-6 text-foreground">
                   {forecast.now.condition.icon} {forecast.now.temperature > 0 ? "+" : ""}
                   {forecast.now.temperature}, {forecast.now.condition.label}
                 </p>
@@ -39,22 +44,25 @@ export async function WeatherCompact() {
               <p className="text-base font-semibold">Погода временно недоступна</p>
             )}
           </div>
-          <div className="shrink-0 text-right text-sm text-foreground-muted">
-            {today ? (
-              <>
-                <p>
-                  {today.temperatureMin > 0 ? "+" : ""}
-                  {today.temperatureMin} / {today.temperatureMax > 0 ? "+" : ""}
-                  {today.temperatureMax}
-                </p>
-                <p>подробнее</p>
-              </>
-            ) : (
-              <>
-                <p>прогноз</p>
-                <p>подробнее</p>
-              </>
-            )}
+          <div className="flex shrink-0 items-center gap-2 text-right text-sm text-foreground-muted">
+            <div>
+              {today ? (
+                <>
+                  <p>
+                    {today.temperatureMin > 0 ? "+" : ""}
+                    {today.temperatureMin} / {today.temperatureMax > 0 ? "+" : ""}
+                    {today.temperatureMax}
+                  </p>
+                  <p className="font-medium text-primary">Подробнее</p>
+                </>
+              ) : (
+                <>
+                  <p>прогноз</p>
+                  <p className="font-medium text-primary">Подробнее</p>
+                </>
+              )}
+            </div>
+            <span aria-hidden="true" className="text-xl leading-none text-primary">›</span>
           </div>
         </CardContent>
       </Card>

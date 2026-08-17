@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async headers() {
+    return [{
+      source: "/:path*",
+      headers: [{
+        key: "Content-Security-Policy",
+        value: "frame-src 'self' https://vk.com https://www.vk.com https://vk.ru https://www.vk.ru https://vkvideo.ru https://www.vkvideo.ru;"
+      }]
+    }];
+  },
   images: {
     dangerouslyAllowLocalIP: process.env.NODE_ENV !== "production",
     remotePatterns: [

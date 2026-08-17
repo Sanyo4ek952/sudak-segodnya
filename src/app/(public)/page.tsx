@@ -30,9 +30,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   ]);
 
   return (
-    <div className="space-y-3 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <section className="space-y-1 sm:space-y-1.5">
-        <h1 className="text-2xl font-semibold leading-tight text-foreground sm:text-4xl">
+        <h1 className="text-3xl font-semibold leading-9 text-foreground sm:text-4xl sm:leading-10">
           Судак сегодня
         </h1>
         <p className="hidden max-w-form text-sm leading-6 text-foreground-muted sm:block sm:text-base sm:leading-7">

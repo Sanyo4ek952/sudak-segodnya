@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { PublicationMediaCarouselServer } from "@/entities/publication/ui/publication-media-carousel-server";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent } from "@/shared/ui/card";
 import { SectionHeader } from "@/shared/ui/section-header";
@@ -70,7 +70,7 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
         : publication.schedule ?? "Актуально";
 
   return (
-    <article className="mx-auto max-w-3xl space-y-6">
+    <article className="mx-auto max-w-3xl space-y-5 sm:space-y-6">
       {eventJsonLd ? <JsonLd data={eventJsonLd} /> : null}
       <AnalyticsPageView
         analytics={{
@@ -85,30 +85,49 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
           publicationId: publication.id
         }}
       />
-      <Link href="/" className="inline-flex min-h-10 items-center text-sm font-medium text-primary">
-        Назад в ленту
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-foreground">
+          <span aria-hidden="true" className="text-2xl leading-none">‹</span>
+          Назад в ленту
+        </Link>
+        <FavoriteToggle
+          id={publication.id}
+          type="publication"
+          label={publication.title}
+          className="border border-border bg-surface hover:bg-background"
+          analytics={{
+            organizationId: publication.organization.id,
+            publicationId: publication.id
+          }}
+        />
+      </div>
 
-      {publication.image ? (
-        <div className="relative aspect-[16/10] overflow-hidden rounded-lg bg-surface-muted">
-          <Image
-            src={publication.image}
-            alt=""
-            fill
-            className="object-cover"
-            sizes="(min-width: 768px) 768px, 100vw"
-            priority
-          />
-        </div>
-      ) : null}
+      <PublicationMediaCarouselServer
+        publicationId={publication.id}
+        publicationTitle={publication.title}
+        publicationHref={`/publications/${publication.slug}`}
+        fallbackImage={publication.image}
+        variant="detail"
+      />
 
       <header className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={publication.status === "cancelled" ? "error" : "info"}>
-            {publication.status === "cancelled" ? "Отменено" : publicationTypeLabels[publication.type]}
-          </Badge>
-          {publication.isFree ? <Badge variant="success">Бесплатно</Badge> : null}
-          {publication.ageLimit ? <Badge variant="muted">{publication.ageLimit}</Badge> : null}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              variant={
+                publication.status === "cancelled"
+                  ? "error"
+                  : publication.type === "regular"
+                    ? "accent"
+                    : "info"
+              }
+            >
+              {publication.status === "cancelled" ? "Отменено" : publicationTypeLabels[publication.type]}
+            </Badge>
+            {publication.isFree ? <Badge variant="sand">Бесплатно</Badge> : null}
+            {publication.ageLimit ? <Badge variant="muted">{publication.ageLimit}</Badge> : null}
+          </div>
+          <p className="text-xs text-foreground-muted">Опубликовано {formatDate(publication.publishedAt ?? publication.updatedAt)}</p>
         </div>
         {publication.status === "cancelled" ? (
           <div className="rounded-md border border-error bg-error/10 p-4" role="status">
@@ -118,54 +137,48 @@ export default async function PublicationPage({ params }: PublicationPageProps) 
             </p>
           </div>
         ) : null}
-        <div className="space-y-3">
-          <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">{publication.title}</h1>
-          <p className="text-base leading-7 text-foreground-muted">{publication.description}</p>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <Link href={`/organizations/${publication.organization.slug}`} className="text-sm font-medium text-primary">
-            {publication.organization.name}
-          </Link>
-          <FavoriteToggle
-            id={publication.id}
-            type="publication"
-            label={publication.title}
-            analytics={{
-              organizationId: publication.organization.id,
-              publicationId: publication.id
-            }}
-          />
-        </div>
+        <h1 className="text-3xl font-semibold leading-9 text-foreground sm:text-4xl sm:leading-10">{publication.title}</h1>
       </header>
 
-      <Card>
-        <CardContent>
-          <dl className="grid gap-4 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="font-medium text-foreground-muted">
-                {publication.type === "news" ? "Дата публикации" : "Когда"}
+      <Card className="shadow-none">
+        <CardContent className="p-0">
+          <dl className="divide-y divide-border text-sm">
+            <div className="flex gap-4 p-4 sm:p-5">
+              <dt className="w-24 shrink-0 font-medium text-foreground-muted">
+                {publication.type === "news" ? "Дата" : "Когда"}
               </dt>
-              <dd className="mt-1 text-base font-semibold">{publication.schedule ?? dateLabel}</dd>
+              <dd className="min-w-0 text-base font-semibold leading-6 text-foreground">{publication.schedule ?? dateLabel}</dd>
             </div>
             {(publication.type === "event" || publication.type === "regular") && publication.place ? (
-              <div>
-                <dt className="font-medium text-foreground-muted">Где</dt>
-                <dd className="mt-1 text-base font-semibold">{publication.place}</dd>
+              <div className="flex gap-4 p-4 sm:p-5">
+                <dt className="w-24 shrink-0 font-medium text-foreground-muted">Где</dt>
+                <dd className="min-w-0 text-base font-semibold leading-6 text-foreground">{publication.place}</dd>
               </div>
             ) : null}
-            {["event", "promo", "regular"].includes(publication.type) && publication.priceText ? (
-              <div>
-                <dt className="font-medium text-foreground-muted">Цена</dt>
-                <dd className="mt-1 text-base font-semibold">{publication.priceText}</dd>
+            {["event", "promo", "regular"].includes(publication.type) && (publication.isFree || publication.priceText) ? (
+              <div className="flex gap-4 p-4 sm:p-5">
+                <dt className="w-24 shrink-0 font-medium text-foreground-muted">Цена</dt>
+                <dd className="min-w-0 text-base font-semibold leading-6 text-foreground">
+                  {publication.isFree ? "Бесплатно" : publication.priceText}
+                </dd>
               </div>
             ) : null}
-            <div>
-              <dt className="font-medium text-foreground-muted">Обновлено</dt>
-              <dd className="mt-1 text-base font-semibold">{formatDate(publication.updatedAt)}</dd>
+            <div className="flex gap-4 p-4 sm:p-5">
+              <dt className="w-24 shrink-0 font-medium text-foreground-muted">Организатор</dt>
+              <dd className="min-w-0 text-base font-semibold leading-6">
+                <Link href={`/organizations/${publication.organization.slug}`} className="text-primary underline-offset-4 hover:underline">
+                  {publication.organization.name}
+                </Link>
+              </dd>
             </div>
           </dl>
         </CardContent>
       </Card>
+
+      <section className="space-y-2">
+        <h2 className="text-xl font-semibold leading-7">Описание</h2>
+        <p className="whitespace-pre-line text-base leading-7 text-foreground-muted">{publication.description}</p>
+      </section>
 
       <section className="space-y-4">
         <SectionHeader title="Действия" />

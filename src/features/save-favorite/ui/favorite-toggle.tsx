@@ -15,9 +15,10 @@ type FavoriteToggleProps = {
   type: FavoriteType;
   label: string;
   analytics?: Omit<AnalyticsEventInput, "eventName">;
+  className?: string;
 };
 
-export function FavoriteToggle({ id, type, label, analytics }: FavoriteToggleProps) {
+export function FavoriteToggle({ id, type, label, analytics, className }: FavoriteToggleProps) {
   const [isFavorite, setIsFavorite] = useState(false);
   const key = useMemo(() => favoriteKey(type, id), [id, type]);
 
@@ -41,6 +42,7 @@ export function FavoriteToggle({ id, type, label, analytics }: FavoriteTogglePro
       type="button"
       variant={isFavorite ? "secondary" : "ghost"}
       size="icon"
+      className={className}
       aria-label={isFavorite ? `Убрать из избранного: ${label}` : `Добавить в избранное: ${label}`}
       onClick={() => {
         const items = readFavorites();

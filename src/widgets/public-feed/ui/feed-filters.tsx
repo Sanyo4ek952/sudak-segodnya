@@ -11,8 +11,8 @@ export function getFeedFilterClassName(isActive: boolean) {
   return cn(
     "inline-flex min-h-11 items-center justify-center rounded-full border px-4 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
     isActive
-      ? "border-primary bg-primary text-primary-foreground hover:opacity-95"
-      : "border-border bg-surface text-foreground-muted hover:bg-surface-muted hover:text-foreground"
+      ? "border-primary bg-primary text-primary-foreground hover:bg-primary-600"
+      : "border-border bg-surface text-foreground-muted hover:border-primary/25 hover:bg-background hover:text-primary"
   );
 }
 

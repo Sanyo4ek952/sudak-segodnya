@@ -1,10 +1,11 @@
-const VERSION = "2026-07-22-1";
+const VERSION = "2026-08-08-brand-1";
 const STATIC_CACHE = `sudak-today-static-${VERSION}`;
 const ALLOWED_CACHES = new Set([STATIC_CACHE]);
 
 const OFFLINE_URL = "/offline";
 const STATIC_ASSETS = [
   OFFLINE_URL,
+  "/brand/logo-mark.png",
   "/favicon.ico",
   "/apple-touch-icon.png",
   "/icons/icon-192.png",
@@ -61,6 +62,7 @@ function isStaticAsset(url) {
     (url.pathname.startsWith("/_next/static/") ||
       url.pathname === "/favicon.ico" ||
       url.pathname === "/apple-touch-icon.png" ||
+      url.pathname.startsWith("/brand/") ||
       url.pathname.startsWith("/icons/"))
   );
 }
@@ -122,6 +124,13 @@ self.addEventListener("message", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  const publicationMediaRequestUrl = new URL(event.request.url);
+  if (
+    publicationMediaRequestUrl.pathname.startsWith("/api/")
+    || publicationMediaRequestUrl.pathname.startsWith("/admin/")
+    || publicationMediaRequestUrl.pathname.startsWith("/business/")
+    || publicationMediaRequestUrl.pathname.includes("/functions/v1/vk-media-resolve")
+  ) return;
   const { request } = event;
   const url = new URL(request.url);
 
