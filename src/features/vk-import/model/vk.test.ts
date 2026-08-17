@@ -2,11 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
   getVkImportAvailability,
   normalizeVkDomain,
-  vkManualImportCooldownMs
+  vkManualImportCooldownMs,
+  vkManualImportStaleAfterMs
 } from "@/features/vk-import/model/types";
 import {
   buildVkPostUrl,
   fetchVkWall,
+  filterFreshVkPosts,
+  isFreshVkPost,
   normalizeVkPost,
   normalizeVkWallResponse,
   runVkSourceImports,
@@ -20,27 +23,74 @@ describe("VK manual import availability", () => {
   const now = Date.parse("2026-08-10T12:00:00.000Z");
 
   it("allows the first manual import", () => {
-    expect(getVkImportAvailability(null, now)).toEqual({
+    expect(getVkImportAvailability([], now)).toEqual({
       canRun: true,
+      state: "available",
       lastStartedAt: null,
       nextAvailableAt: null
     });
   });
 
-  it("blocks another click inside the rolling 24-hour window", () => {
-    const lastStartedAt = new Date(now - vkManualImportCooldownMs + 1).toISOString();
-    expect(getVkImportAvailability(lastStartedAt, now)).toMatchObject({
+  it("blocks another click while an import is running", () => {
+    const startedAt = new Date(now - vkManualImportStaleAfterMs + 1).toISOString();
+    expect(getVkImportAvailability([{
+      status: "running",
+      startedAt,
+      finishedAt: null
+    }], now)).toMatchObject({
       canRun: false,
-      lastStartedAt
+      state: "running",
+      lastStartedAt: startedAt
     });
   });
 
-  it("allows the next click exactly 24 hours later", () => {
-    const lastStartedAt = new Date(now - vkManualImportCooldownMs).toISOString();
-    expect(getVkImportAvailability(lastStartedAt, now)).toMatchObject({
+  it("allows a replacement claim when a running import is stale", () => {
+    const startedAt = new Date(now - vkManualImportStaleAfterMs).toISOString();
+    expect(getVkImportAvailability([{
+      status: "running",
+      startedAt,
+      finishedAt: null
+    }], now)).toMatchObject({
       canRun: true,
-      lastStartedAt,
-      nextAvailableAt: "2026-08-10T12:00:00.000Z"
+      state: "available",
+      lastStartedAt: startedAt,
+      nextAvailableAt: null
+    });
+  });
+
+  it("keeps a one-minute cooldown after a successful import", () => {
+    const finishedAt = new Date(now - vkManualImportCooldownMs + 1).toISOString();
+    expect(getVkImportAvailability([{
+      status: "succeeded",
+      startedAt: "2026-08-10T11:58:00.000Z",
+      finishedAt
+    }], now)).toMatchObject({
+      canRun: false,
+      state: "cooldown"
+    });
+  });
+
+  it("allows the next click exactly one minute after success", () => {
+    const finishedAt = new Date(now - vkManualImportCooldownMs).toISOString();
+    expect(getVkImportAvailability([{
+      status: "succeeded",
+      startedAt: "2026-08-10T11:58:00.000Z",
+      finishedAt
+    }], now)).toMatchObject({
+      canRun: true,
+      state: "available",
+      nextAvailableAt: null
+    });
+  });
+
+  it("allows an immediate retry after a failed import", () => {
+    expect(getVkImportAvailability([{
+      status: "failed",
+      startedAt: "2026-08-10T11:59:30.000Z",
+      finishedAt: "2026-08-10T11:59:45.000Z"
+    }], now)).toMatchObject({
+      canRun: true,
+      state: "available"
     });
   });
 });
@@ -140,6 +190,110 @@ describe("VK normalization", () => {
     })).toBeNull();
   });
 
+  it("keeps a video-only post and selects the largest video poster", () => {
+    const normalized = normalizeVkPost({
+      id: 79,
+      owner_id: -101,
+      date: 1_786_177_600,
+      text: "",
+      attachments: [{
+        type: "video",
+        video: {
+          id: 9,
+          owner_id: -101,
+          title: "Прогулка по Судаку",
+          duration: 95,
+          image: [
+            { url: "https://sun9-1.userapi.com/video-small.jpg", width: 320, height: 180 },
+            { url: "https://sun9-1.userapi.com/video-large.jpg", width: 1280, height: 720 }
+          ],
+          first_frame: [
+            { url: "https://sun9-1.userapi.com/video-frame.jpg", width: 1920, height: 1080 }
+          ]
+        }
+      }]
+    });
+
+    expect(normalized?.media).toEqual([expect.objectContaining({
+      type: "video",
+      attachmentType: "video",
+      sourceUrl: "https://vk.com/video-101_9",
+      previewSourceUrl: "https://sun9-1.userapi.com/video-large.jpg",
+      previewSourceUrls: [
+        "https://sun9-1.userapi.com/video-large.jpg",
+        "https://sun9-1.userapi.com/video-small.jpg",
+        "https://sun9-1.userapi.com/video-frame.jpg"
+      ],
+      externalId: "-101_9",
+      durationSeconds: 95
+    })]);
+  });
+
+  it("uses first_frame when a clip has no poster image", () => {
+    const normalized = normalizeVkPost({
+      id: 80,
+      owner_id: -101,
+      date: 1_786_177_600,
+      text: "Клип",
+      attachments: [{
+        type: "clip",
+        clip: {
+          id: 10,
+          owner_id: -101,
+          first_frame: [{
+            url: "https://sun9-1.userapi.com/clip-frame.jpg",
+            width: 720,
+            height: 1280
+          }]
+        }
+      }]
+    });
+
+    expect(normalized?.media[0]).toMatchObject({
+      type: "video",
+      attachmentType: "clip",
+      previewSourceUrl: "https://sun9-1.userapi.com/clip-frame.jpg"
+    });
+  });
+
+  it("keeps a validated player, access key and short_video kind", () => {
+    const normalized = normalizeVkPost({
+      id: 81,
+      owner_id: -101,
+      date: 1_786_177_600,
+      text: "Short",
+      attachments: [{
+        type: "video",
+        video: {
+          id: 11,
+          owner_id: -101,
+          type: "short_video",
+          access_key: "public-key",
+          player: "https://vk.com/video_ext.php?oid=-101&id=11",
+          image: [{ url: "https://sun9-1.userapi.com/short.jpg", width: 720, height: 1280 }]
+        }
+      }]
+    });
+
+    expect(normalized?.media[0]).toMatchObject({
+      type: "video",
+      attachmentType: "clip",
+      sourceUrl: "https://vk.com/video-101_11?access_key=public-key",
+      embedUrl: "https://vk.com/video_ext.php?oid=-101&id=11",
+      accessKey: "public-key"
+    });
+  });
+
+  it("keeps only posts inside the seven-day freshness window", () => {
+    const now = Date.parse("2026-08-09T12:00:00.000Z");
+    const fresh = { ...post, publishedAt: "2026-08-02T12:00:00.001Z" };
+    const stale = { ...post, externalId: "78", publishedAt: "2026-08-02T12:00:00.000Z" };
+
+    expect(isFreshVkPost(fresh, now)).toBe(true);
+    expect(isFreshVkPost(stale, now)).toBe(false);
+    expect(filterFreshVkPosts([stale, fresh], now)).toEqual([fresh]);
+  });
+
   it("deduplicates repeated post ids in one wall response", () => {
     const raw = { id: 77, owner_id: -101, date: 1_786_177_600, text: "Новость" };
     expect(normalizeVkWallResponse({ response: { items: [raw, raw] } })).toHaveLength(1);
@@ -187,7 +341,7 @@ describe("VK import orchestration", () => {
           inserted += 1;
         }
       }
-      return inserted;
+      return { insertedCount: inserted, savedMediaCount: 0, failedMediaCount: 0 };
     };
     const dependencies = {
       sources: [source],
@@ -220,7 +374,7 @@ describe("VK import orchestration", () => {
       },
       persistPosts: async (currentSource, posts) => {
         persistedSources.push(currentSource.id);
-        return posts.length;
+        return { insertedCount: posts.length, savedMediaCount: 1, failedMediaCount: 0 };
       },
       markSucceeded: async () => undefined,
       markFailed: async (currentSource) => {

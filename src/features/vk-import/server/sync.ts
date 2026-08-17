@@ -7,6 +7,8 @@ const sourceResultSchema = z.object({
   status: z.enum(["succeeded", "failed"]),
   discoveredCount: z.number().int().nonnegative(),
   insertedCount: z.number().int().nonnegative(),
+  savedMediaCount: z.number().int().nonnegative().default(0),
+  failedMediaCount: z.number().int().nonnegative().default(0),
   error: z.string().nullable()
 });
 
@@ -16,6 +18,8 @@ const vkImportResultSchema = z.object({
   failedCount: z.number().int().nonnegative(),
   discoveredCount: z.number().int().nonnegative(),
   insertedCount: z.number().int().nonnegative(),
+  savedMediaCount: z.number().int().nonnegative().default(0),
+  failedMediaCount: z.number().int().nonnegative().default(0),
   results: z.array(sourceResultSchema)
 });
 
@@ -40,7 +44,7 @@ export async function invokeVkImport(): Promise<VkImportResult> {
       },
       body: "{}",
       cache: "no-store",
-      signal: AbortSignal.timeout(120_000)
+      signal: AbortSignal.timeout(240_000)
     });
   } catch {
     throw new Error("VK import function is unavailable.");

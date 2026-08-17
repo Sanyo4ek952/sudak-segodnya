@@ -110,7 +110,7 @@ export default async function WeatherPage() {
         rel="noreferrer"
         variant="primary"
         size="sm"
-        className="w-full justify-center whitespace-nowrap !rounded-full border border-[#c8c8c8] bg-white font-semibold text-black shadow-[0_6px_18px_rgba(0,0,0,0.14)] hover:bg-white hover:opacity-100 sm:w-auto"
+        className="w-full justify-center whitespace-nowrap !rounded-full border border-[#c8c8c8] bg-white font-semibold !text-black shadow-[0_6px_18px_rgba(0,0,0,0.14)] hover:bg-white hover:opacity-100 sm:w-auto"
       >
         <span className="inline-flex size-5 items-center justify-center rounded-md border border-[#e5e5e5] bg-white text-sm font-bold text-[#fc3f1d] shadow-[0_2px_6px_rgba(0,0,0,0.12)]">
           Я

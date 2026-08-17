@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/shared/lib/cn";
 
-type SectionNavigationItem = {
+export type SectionNavigationItem = {
   label: string;
   href: string;
   exact?: boolean;
@@ -13,17 +13,26 @@ type SectionNavigationItem = {
 type SectionNavigationProps = {
   label: string;
   items: SectionNavigationItem[];
+  variant?: "tabs" | "workspace";
 };
 
-export function SectionNavigation({ label, items }: SectionNavigationProps) {
+export function SectionNavigation({ label, items, variant = "tabs" }: SectionNavigationProps) {
   const pathname = usePathname();
 
   return (
     <nav
-      className="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className={cn(
+        "overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        variant === "workspace" && "lg:overflow-visible lg:pb-0"
+      )}
       aria-label={label}
     >
-      <div className="flex min-w-0 gap-2">
+      <div
+        className={cn(
+          "flex gap-2",
+          variant === "workspace" ? "w-max lg:w-full lg:flex-col" : "min-w-0"
+        )}
+      >
         {items.map((item) => {
           const isActive = item.exact
             ? pathname === item.href
@@ -35,8 +44,9 @@ export function SectionNavigation({ label, items }: SectionNavigationProps) {
               href={item.href}
               prefetch={false}
               className={cn(
-                "flex min-h-10 shrink-0 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium text-foreground-muted",
-                isActive && "border-primary bg-surface-muted text-foreground"
+                "flex min-h-10 shrink-0 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium text-foreground-muted transition-colors hover:border-primary/25 hover:bg-background hover:text-primary",
+                variant === "workspace" && "lg:w-full lg:justify-start lg:border-transparent lg:bg-transparent",
+                isActive && "border-primary/25 bg-primary/5 text-primary"
               )}
             >
               {item.label}

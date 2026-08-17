@@ -523,6 +523,68 @@ export type Database = {
           },
         ]
       }
+      external_item_media: {
+        Row: {
+          bucket_id: string
+          content_hash: string
+          created_at: string
+          external_item_id: string
+          height: number | null
+          id: string
+          kind: string
+          media_key: string
+          mime_type: string
+          size_bytes: number
+          sort_order: number
+          source_url: string
+          storage_path: string
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          bucket_id?: string
+          content_hash: string
+          created_at?: string
+          external_item_id: string
+          height?: number | null
+          id?: string
+          kind: string
+          media_key: string
+          mime_type: string
+          size_bytes: number
+          sort_order?: number
+          source_url: string
+          storage_path: string
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          bucket_id?: string
+          content_hash?: string
+          created_at?: string
+          external_item_id?: string
+          height?: number | null
+          id?: string
+          kind?: string
+          media_key?: string
+          mime_type?: string
+          size_bytes?: number
+          sort_order?: number
+          source_url?: string
+          storage_path?: string
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_item_media_external_item_id_fkey"
+            columns: ["external_item_id"]
+            isOneToOne: false
+            referencedRelation: "external_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_sources: {
         Row: {
           created_at: string
@@ -800,6 +862,165 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_candidate_media: {
+        Row: {
+          bucket_id: string | null
+          candidate_id: string
+          created_at: string
+          created_by: string | null
+          duration_seconds: number | null
+          embed_url: string | null
+          error_message: string | null
+          external_id: string | null
+          height: number | null
+          id: string
+          included: boolean
+          kind: Database["public"]["Enums"]["publication_media_kind"]
+          sort_order: number
+          source_kind: Database["public"]["Enums"]["content_candidate_media_source"]
+          source_media_key: string | null
+          source_url: string | null
+          status: Database["public"]["Enums"]["content_candidate_media_status"]
+          storage_path: string | null
+          title: string | null
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          bucket_id?: string | null
+          candidate_id: string
+          created_at?: string
+          created_by?: string | null
+          duration_seconds?: number | null
+          embed_url?: string | null
+          error_message?: string | null
+          external_id?: string | null
+          height?: number | null
+          id?: string
+          included?: boolean
+          kind: Database["public"]["Enums"]["publication_media_kind"]
+          sort_order?: number
+          source_kind: Database["public"]["Enums"]["content_candidate_media_source"]
+          source_media_key?: string | null
+          source_url?: string | null
+          status?: Database["public"]["Enums"]["content_candidate_media_status"]
+          storage_path?: string | null
+          title?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          bucket_id?: string | null
+          candidate_id?: string
+          created_at?: string
+          created_by?: string | null
+          duration_seconds?: number | null
+          embed_url?: string | null
+          error_message?: string | null
+          external_id?: string | null
+          height?: number | null
+          id?: string
+          included?: boolean
+          kind?: Database["public"]["Enums"]["publication_media_kind"]
+          sort_order?: number
+          source_kind?: Database["public"]["Enums"]["content_candidate_media_source"]
+          source_media_key?: string | null
+          source_url?: string | null
+          status?: Database["public"]["Enums"]["content_candidate_media_status"]
+          storage_path?: string | null
+          title?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_candidate_media_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "content_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publication_media: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          embed_url: string | null
+          external_id: string | null
+          height: number | null
+          id: string
+          kind: Database["public"]["Enums"]["publication_media_kind"]
+          media_asset_id: string
+          provider: string | null
+          publication_id: string
+          sort_order: number
+          source_candidate_media_id: string | null
+          source_url: string | null
+          title: string | null
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number | null
+          embed_url?: string | null
+          external_id?: string | null
+          height?: number | null
+          id?: string
+          kind: Database["public"]["Enums"]["publication_media_kind"]
+          media_asset_id: string
+          provider?: string | null
+          publication_id: string
+          sort_order: number
+          source_candidate_media_id?: string | null
+          source_url?: string | null
+          title?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number | null
+          embed_url?: string | null
+          external_id?: string | null
+          height?: number | null
+          id?: string
+          kind?: Database["public"]["Enums"]["publication_media_kind"]
+          media_asset_id?: string
+          provider?: string | null
+          publication_id?: string
+          sort_order?: number
+          source_candidate_media_id?: string | null
+          source_url?: string | null
+          title?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publication_media_media_asset_id_fkey"
+            columns: ["media_asset_id"]
+            isOneToOne: true
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_media_publication_id_fkey"
+            columns: ["publication_id"]
+            isOneToOne: false
+            referencedRelation: "publications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_media_source_candidate_media_id_fkey"
+            columns: ["source_candidate_media_id"]
+            isOneToOne: true
+            referencedRelation: "content_candidate_media"
             referencedColumns: ["id"]
           },
         ]
@@ -1815,7 +2036,11 @@ export type Database = {
         | "organization_cover"
         | "application_confirmation"
         | "publication_photo"
+        | "publication_video_poster"
         | "menu_item_photo"
+      publication_media_kind: "photo" | "video" | "clip"
+      content_candidate_media_source: "vk_import" | "manual_upload" | "manual_vk"
+      content_candidate_media_status: "ready" | "pending" | "error"
       media_asset_visibility: "public" | "private"
       organization_application_status:
         | "draft"
@@ -2033,8 +2258,12 @@ export const Constants = {
         "organization_cover",
         "application_confirmation",
         "publication_photo",
+        "publication_video_poster",
         "menu_item_photo",
       ],
+      publication_media_kind: ["photo", "video", "clip"],
+      content_candidate_media_source: ["vk_import", "manual_upload", "manual_vk"],
+      content_candidate_media_status: ["ready", "pending", "error"],
       media_asset_visibility: ["public", "private"],
       organization_application_status: [
         "draft",

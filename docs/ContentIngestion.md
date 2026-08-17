@@ -166,3 +166,14 @@ Function Secrets, затем запустить синхронизацию вр�
 [официальной документации](https://supabase.com/docs/guides/functions/secrets),
 а per-function auth configuration — в
 [Function Configuration](https://supabase.com/docs/guides/functions/function-configuration).
+# VK-медиа кандидата
+
+Новый VK-импорт сохраняет top-level фото, видео и клипы в исходном порядке; `copy_history` не обходится. Фото и постеры проходят безопасное staging, а provenance остаётся в `external_items.media` и `raw_payload`. Если объект содержит проверенный `player`, он используется; иначе прямая ссылка разрешается серверной Edge Function `vk-media-resolve` через `video.getOembed`.
+
+Resolver принимает не больше 10 прямых публичных `video…`/`clip…` ссылок, проверяет HTTPS, hostname и `/video_ext.php`, извлекает только `iframe src` и безопасные метаданные. Raw oEmbed HTML, `access_token` и внутренний секрет не сохраняются и не возвращаются браузеру.
+
+При review выбранные готовые элементы копируются в `publication-images`, регистрируются в `media_assets` и идемпотентно связываются через `source_candidate_media_id`. Частичный сбой не откатывает готовые элементы: точные предупреждения сохраняются у кандидата, ошибочные элементы можно подготовить повторно. Временные файлы терминальных кандидатов удаляются retention-процедурой после 30 дней.
+
+Существующие одиночные `publication_photo` переносятся в `publication_media`; видео из исторически одобренных VK-кандидатов намеренно не восстанавливается.
+
+Аварийное выключение записи выполняется server-side переменной `PUBLICATION_MEDIA_WRITES_ENABLED=false`. Чтение новой модели и legacy-обложки продолжается; миграции и данные разрушительно не откатываются.

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { assertBusinessMembership } from "@/features/business-cabinet/model/actions";
-import { SectionNavigation } from "@/widgets/app-shell/ui/section-navigation";
+import { WorkspaceShell } from "@/widgets/app-shell/ui/workspace-shell";
 
 type BusinessOrganizationLayoutProps = {
   children: React.ReactNode;
@@ -32,9 +32,11 @@ export default async function BusinessOrganizationLayout({
   ];
 
   return (
-    <div className="space-y-6">
-      <SectionNavigation label="Навигация кабинета организации" items={navigationItems} />
+    <WorkspaceShell
+      navigationLabel="Навигация кабинета организации"
+      navigationItems={navigationItems}
+    >
       {children}
-    </div>
+    </WorkspaceShell>
   );
 }

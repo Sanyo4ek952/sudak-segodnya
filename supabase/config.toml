@@ -387,6 +387,10 @@ deno_version = 2
 # inside the handler. The setting is scoped to this function only.
 verify_jwt = false
 
+[functions.vk-media-resolve]
+# The resolver is server-to-server only and validates VK_IMPORT_INTERNAL_SECRET.
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

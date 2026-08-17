@@ -1,4 +1,8 @@
-import { fetchValidatedImage } from "@/features/content-ingestion/server/secure-image";
+import {
+  fetchValidatedImage,
+  validateImageFile,
+  type ValidatedImage
+} from "@/features/content-ingestion/server/secure-image";
 import {
   getImportedMediaAssetInsert,
   getImportedImageTarget,
@@ -9,18 +13,15 @@ import { createSupabaseAdminClient } from "@/shared/api/supabase/admin";
 
 export const IMAGE_IMPORT_WARNING_PREFIX = "Импорт изображения:";
 
-export async function importCandidateImage({
-  sourceUrl,
+async function persistCandidateImage({
+  image,
   owner,
-  uploadedBy,
-  fetchImage = fetchValidatedImage
+  uploadedBy
 }: {
-  sourceUrl: string;
+  image: ValidatedImage;
   owner: ImportedImageOwner;
   uploadedBy: string;
-  fetchImage?: typeof fetchValidatedImage;
 }) {
-  const image = await fetchImage(sourceUrl);
   const target = getImportedImageTarget(owner, image.contentHash, image.extension);
   const admin = createSupabaseAdminClient();
   const { data: previous, error: previousError } = await admin
@@ -81,4 +82,58 @@ export async function importCandidateImage({
     status: previous ? "replaced" as const : "created" as const,
     contentHash: image.contentHash
   };
+}
+
+export async function importCandidateImage({
+  sourceUrl,
+  owner,
+  uploadedBy,
+  fetchImage = fetchValidatedImage
+}: {
+  sourceUrl: string;
+  owner: ImportedImageOwner;
+  uploadedBy: string;
+  fetchImage?: typeof fetchValidatedImage;
+}) {
+  return persistCandidateImage({ image: await fetchImage(sourceUrl), owner, uploadedBy });
+}
+
+export async function importCandidateImageBytes({
+  bytes,
+  contentType,
+  owner,
+  uploadedBy
+}: {
+  bytes: Buffer;
+  contentType: string;
+  owner: ImportedImageOwner;
+  uploadedBy: string;
+}) {
+  return persistCandidateImage({
+    image: validateImageFile(bytes, contentType),
+    owner,
+    uploadedBy
+  });
+}
+
+export async function importCandidateImageFromStorage({
+  bucketId,
+  storagePath,
+  owner,
+  uploadedBy
+}: {
+  bucketId: string;
+  storagePath: string;
+  owner: ImportedImageOwner;
+  uploadedBy: string;
+}) {
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.storage.from(bucketId).download(storagePath);
+  if (error || !data) throw new Error("Не удалось прочитать сохранённое изображение источника.");
+  return importCandidateImageBytes({
+    bytes: Buffer.from(await data.arrayBuffer()),
+    contentType: data.type,
+    owner,
+    uploadedBy
+  });
 }

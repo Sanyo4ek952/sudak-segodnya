@@ -10,6 +10,7 @@ import {
   type CalendarPublication
 } from "@/features/publication-actions/model/calendar";
 import type { Publication } from "@/entities/publication/model/types";
+import { cn } from "@/shared/lib/cn";
 import { Button, LinkButton } from "@/shared/ui/button";
 
 type PublicationActionsProps = {
@@ -79,6 +80,8 @@ export function PublicationActions({ publication }: PublicationActionsProps) {
     : null;
   const canShowRoute = (publication.type === "event" || publication.type === "regular")
     && Boolean(publication.place);
+  const actionCount = Number(Boolean(contactPhoneHref)) + Number(canShowRoute) + Number(canAddToCalendar) + 1;
+  const actionClassName = "h-auto min-h-20 flex-col gap-1 px-1.5 text-center text-xs leading-4";
 
   const getPublicUrl = () => window.location.href;
 
@@ -152,12 +155,18 @@ export function PublicationActions({ publication }: PublicationActionsProps) {
 
   return (
     <div className="space-y-2">
-      <div className="grid gap-3 sm:grid-cols-2">
-        {contactPhoneHref ? <LinkButton href={contactPhoneHref}>Позвонить</LinkButton> : null}
+      <div className={cn("grid gap-2", actionCount > 2 ? "grid-cols-4" : "grid-cols-2")}>
+        {contactPhoneHref ? (
+          <LinkButton href={contactPhoneHref} variant="outline" className={actionClassName}>
+            <span aria-hidden="true" className="text-lg leading-none text-primary">☎</span>
+            Позвонить
+          </LinkButton>
+        ) : null}
         {canShowRoute ? (
           <AnalyticsLinkButton
             href={`https://yandex.ru/maps/?text=${encodeURIComponent(publication.place)}`}
             variant="outline"
+            className={actionClassName}
             target="_blank"
             rel="noreferrer"
             analytics={{
@@ -166,15 +175,18 @@ export function PublicationActions({ publication }: PublicationActionsProps) {
               publicationId: publication.id
             }}
           >
+            <span aria-hidden="true" className="text-lg leading-none text-primary">⌖</span>
             Маршрут
           </AnalyticsLinkButton>
         ) : null}
         {canAddToCalendar ? (
-          <Button type="button" variant="outline" onClick={handleCalendarDownload}>
+          <Button type="button" variant="outline" className={actionClassName} onClick={handleCalendarDownload}>
+            <span aria-hidden="true" className="text-lg leading-none text-primary">▦</span>
             В календарь
           </Button>
         ) : null}
-        <Button type="button" variant="outline" onClick={handleShare}>
+        <Button type="button" variant="outline" className={actionClassName} onClick={handleShare}>
+          <span aria-hidden="true" className="text-lg leading-none text-primary">↥</span>
           Поделиться
         </Button>
       </div>

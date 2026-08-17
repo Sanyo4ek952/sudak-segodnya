@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
+import { PublicationMediaEditorServer } from "@/features/business-cabinet/ui/publication-media-editor-server";
 import {
   getBusinessOrganization,
   getBusinessPublication,
@@ -38,7 +39,8 @@ export default async function EditPublicationPage({ params }: EditPublicationPag
       />
       <Card>
         <CardContent>
-          <PublicationForm
+      <PublicationMediaEditorServer publicationId={publication.id} />
+      <PublicationForm
             organizationId={organizationId}
             organizationAddress={organization.address}
             publication={publication}

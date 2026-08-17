@@ -11,6 +11,8 @@ import {
   type VkImportAvailability,
   type VkImportActionState
 } from "@/features/vk-import/model/types";
+import { vkImportMaxAgeMs, type VkQueueMedia } from "@/features/vk-import/model/media";
+import { createSupabaseAdminClient } from "@/shared/api/supabase/admin";
 import { createSupabaseServerClient } from "@/shared/api/supabase/server";
 import { postgresUuidSchema } from "@/shared/lib/postgres-uuid";
 
@@ -23,8 +25,7 @@ const sourceInputSchema = z.object({
 });
 const manualRunClaimSchema = z.object({
   runId: z.string().uuid(),
-  startedAt: z.string().datetime({ offset: true }),
-  nextAvailableAt: z.string().datetime({ offset: true })
+  startedAt: z.string().datetime({ offset: true })
 });
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -50,6 +51,26 @@ function actionSuccess(message: string): VkImportActionState {
   return { status: "success", message };
 }
 
+function vkImportInvocationErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "VK import failed";
+  if (message === "VK import server credentials are not configured.") {
+    return "На Vercel не настроены параметры запуска VK-импорта.";
+  }
+  if (message === "VK import function rejected the request.") {
+    return "Edge Function отклонила запрос. Проверьте, что внутренний секрет совпадает в Vercel и Supabase.";
+  }
+  if (message === "VK import function returned an invalid result.") {
+    return "Версии приложения и Edge Function используют несовместимый формат ответа.";
+  }
+  if (message === "VK import function returned an invalid response.") {
+    return "Edge Function вернула некорректный ответ.";
+  }
+  if (message === "VK import function is unavailable.") {
+    return "Edge Function VK временно недоступна.";
+  }
+  return "Не удалось запустить VK-импорт.";
+}
+
 function formatMoscowDateTime(value: string) {
   return moscowDateTimeFormatter.format(new Date(value));
 }
@@ -69,13 +90,16 @@ async function loadVkImportAvailability(
 ): Promise<VkImportAvailability> {
   const { data, error } = await supabase
     .from("vk_manual_import_runs")
-    .select("started_at")
+    .select("status, started_at, finished_at")
     .order("started_at", { ascending: false })
     .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(20);
   if (error) throw new Error("Failed to load VK import availability");
-  return getVkImportAvailability(data?.started_at ?? null);
+  return getVkImportAvailability((data ?? []).map((run) => ({
+    status: run.status,
+    startedAt: run.started_at,
+    finishedAt: run.finished_at
+  })));
 }
 
 export async function getVkSourceAdminData() {
@@ -109,19 +133,64 @@ export async function getVkExternalItems({
   const pageSize = 20;
   const safePage = Math.max(1, Math.trunc(page));
   const from = (safePage - 1) * pageSize;
+  let itemsQuery = supabase
+    .from("external_items")
+    .select("*, external_sources(id, name, domain, organization_id)", { count: "exact" })
+    .eq("status", status);
+  if (status === "new") {
+    itemsQuery = itemsQuery.gt("published_at", new Date(Date.now() - vkImportMaxAgeMs).toISOString());
+  }
   const [itemsResult, availability] = await Promise.all([
-    supabase
-      .from("external_items")
-      .select("*, external_sources(id, name, domain, organization_id)", { count: "exact" })
-      .eq("status", status)
+    itemsQuery
       .order("published_at", { ascending: false })
       .order("id", { ascending: false })
       .range(from, from + pageSize - 1),
     loadVkImportAvailability(supabase)
   ]);
   if (itemsResult.error) throw new Error("Failed to load VK import queue");
+  const items = itemsResult.data ?? [];
+  const itemIds = items.map((item) => item.id);
+  const { data: storedMedia, error: storedMediaError } = itemIds.length > 0
+    ? await supabase
+      .from("external_item_media")
+      .select("external_item_id, kind, source_url, bucket_id, storage_path, width, height, sort_order")
+      .in("external_item_id", itemIds)
+      .order("sort_order")
+      .order("id")
+    : { data: [], error: null };
+  if (storedMediaError) throw new Error("Failed to load VK import media");
+
+  const admin = createSupabaseAdminClient();
+  const signedMedia = await Promise.all((storedMedia ?? []).map(async (media) => {
+    if (media.kind !== "photo" && media.kind !== "video_preview") return null;
+    const { data, error } = await admin.storage
+      .from(media.bucket_id)
+      .createSignedUrl(media.storage_path, 60 * 10);
+    if (error || !data.signedUrl) return null;
+    return {
+      externalItemId: media.external_item_id,
+      media: {
+        kind: media.kind,
+        sourceUrl: media.source_url,
+        signedUrl: data.signedUrl,
+        width: media.width,
+        height: media.height,
+        sortOrder: media.sort_order
+      } satisfies VkQueueMedia
+    };
+  }));
+  const mediaByItemId = new Map<string, VkQueueMedia[]>();
+  for (const signed of signedMedia) {
+    if (!signed) continue;
+    const current = mediaByItemId.get(signed.externalItemId) ?? [];
+    current.push(signed.media);
+    mediaByItemId.set(signed.externalItemId, current);
+  }
   return {
-    items: itemsResult.data ?? [],
+    items: items.map((item) => ({
+      ...item,
+      stagedMedia: mediaByItemId.get(item.id) ?? []
+    })),
     total: itemsResult.count ?? 0,
     page: safePage,
     pageSize,
@@ -250,10 +319,13 @@ export async function runVkImportNowAction(
       return actionError("Не удалось проверить доступность VK-импорта.");
     }
     const availability = await loadVkImportAvailability(supabase).catch(() => null);
+    if (availability?.state === "running") {
+      return actionError("Синхронизация VK уже выполняется. Дождитесь её завершения.");
+    }
     const nextRun = availability?.nextAvailableAt
       ? ` Следующий запуск доступен ${formatMoscowDateTime(availability.nextAvailableAt)} МСК.`
       : "";
-    return actionError(`VK-импорт можно запускать не чаще одного раза в 24 часа.${nextRun}`);
+    return actionError(`После успешной синхронизации подождите одну минуту.${nextRun}`);
   }
 
   const claim = manualRunClaimSchema.safeParse(claimData);
@@ -264,19 +336,22 @@ export async function runVkImportNowAction(
   let result: Awaited<ReturnType<typeof invokeVkImport>>;
   try {
     result = await invokeVkImport();
-  } catch {
+  } catch (error) {
+    const technicalError = error instanceof Error
+      ? error.message.slice(0, 1000)
+      : "VK import failed";
     await supabase.rpc("finish_vk_manual_import", {
       p_run_id: claim.data.runId,
       p_status: "failed",
       p_summary: null,
-      p_error: "VK import function is unavailable or rejected the request"
+      p_error: technicalError
     });
     revalidatePath("/admin/vk");
     revalidatePath("/admin/vk/sources");
-    return actionError("Не удалось запустить VK-импорт. Проверьте Edge Function и server secrets.");
+    return actionError(vkImportInvocationErrorMessage(error));
   }
 
-  const finalStatus = result.failedCount === 0
+  const finalStatus = result.failedCount === 0 && result.failedMediaCount === 0
     ? "succeeded"
     : result.succeededCount > 0
       ? "partial"
@@ -294,8 +369,8 @@ export async function runVkImportNowAction(
     return actionError("Синхронизация выполнена, но её результат не удалось зафиксировать.");
   }
 
-  const message = `Синхронизация завершена: новых материалов — ${result.insertedCount}, ошибок источников — ${result.failedCount}.`;
-  return result.failedCount > 0 ? actionError(message) : actionSuccess(message);
+  const message = `Синхронизация завершена: новых материалов — ${result.insertedCount}, сохранено медиа — ${result.savedMediaCount}, ошибок медиа — ${result.failedMediaCount}, ошибок источников — ${result.failedCount}.`;
+  return result.failedCount > 0 || result.failedMediaCount > 0 ? actionError(message) : actionSuccess(message);
 }
 
 export async function ignoreVkExternalItemAction(formData: FormData) {

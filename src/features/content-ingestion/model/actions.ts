@@ -38,8 +38,15 @@ import {
 import { normalizeSourceUrl } from "@/features/content-ingestion/server/secure-fetch";
 import {
   IMAGE_IMPORT_WARNING_PREFIX,
-  importCandidateImage
+  importCandidateImage,
+  importCandidateImageBytes,
+  importCandidateImageFromStorage
 } from "@/features/content-ingestion/server/imported-image";
+import { materializeCandidateMedia } from "@/features/content-ingestion/server/candidate-media";
+import {
+  getVkStagedCandidateMedia,
+  readVkFallbackImage
+} from "@/features/vk-import/server/staged-image";
 import {
   processContentIngestionRequest,
   runScheduledContentIngestion
@@ -500,7 +507,52 @@ async function setCandidateImageWarning(candidateId: string, message: string | n
   await admin.from("content_candidates").update({ warnings }).eq("id", candidateId);
 }
 
-async function importReviewedCandidateImage({
+async function importReviewedCandidateImage(
+  ...args: Parameters<typeof importReviewedCandidateLegacyImage>
+) {
+  const options = args[0] as unknown as {
+    candidateId?: string;
+    candidate?: { id?: string };
+    publicationId?: string;
+    targetPublicationId?: string;
+    resultPublicationId?: string;
+    uploadedBy?: string;
+    userId?: string;
+    reviewedBy?: string;
+    reviewerId?: string;
+  };
+  const candidateId = options.candidateId ?? options.candidate?.id;
+  const publicationId = options.publicationId ?? options.targetPublicationId ?? options.resultPublicationId;
+  const uploadedBy = options.uploadedBy ?? options.userId ?? options.reviewedBy ?? options.reviewerId;
+  if (candidateId && publicationId && uploadedBy) {
+    const gallery = await materializeCandidateMedia({
+      candidateId,
+      publicationId,
+      uploadedBy
+    });
+    if (gallery.selectedCount > 0) {
+      if (gallery.warnings.length) {
+        const admin = createSupabaseAdminClient();
+        const { data: current } = await admin.from("content_candidates")
+          .select("warnings").eq("id", candidateId).maybeSingle();
+        const warnings = Array.isArray(current?.warnings) ? current.warnings : [];
+        await admin.from("content_candidates").update({
+          warnings: [...warnings, ...gallery.warnings.map((message) => ({
+            code: "publication_media_partial_failure",
+            message
+          }))]
+        }).eq("id", candidateId);
+      }
+      return {
+        status: gallery.importedCount > 0 ? "created" as const : "unchanged" as const,
+        contentHash: `candidate-gallery:${candidateId}:${gallery.importedCount}`
+      };
+    }
+  }
+  return importReviewedCandidateLegacyImage(...args);
+}
+
+async function importReviewedCandidateLegacyImage({
   candidateId,
   candidateAction,
   payload,
@@ -516,11 +568,6 @@ async function importReviewedCandidateImage({
   uploadedBy: string;
 }) {
   if (candidateAction === "cancel_publication") return { status: "skipped" as const };
-  if (!payload.imageSourceUrl) {
-    const message = "источник не предоставил URL; используется нейтральная заглушка.";
-    await setCandidateImageWarning(candidateId, message);
-    return { status: "warning" as const, message };
-  }
 
   const owner = payload.kind === "organization"
     ? organizationId
@@ -535,7 +582,68 @@ async function importReviewedCandidateImage({
     return { status: "warning" as const, message };
   }
 
+  const importVkFallback = async (reason: string) => {
+    try {
+      const result = await importCandidateImageBytes({
+        bytes: await readVkFallbackImage(),
+        contentType: "image/png",
+        owner,
+        uploadedBy
+      });
+      const message = `${reason}; использована заглушка «Судак Сегодня».`;
+      await setCandidateImageWarning(candidateId, message);
+      return { status: "fallback" as const, message, result };
+    } catch (error) {
+      const fallbackError = error instanceof Error
+        ? error.message.slice(0, 500)
+        : "не удалось импортировать заглушку.";
+      const message = `${reason}; ${fallbackError}`;
+      await setCandidateImageWarning(candidateId, message);
+      return { status: "warning" as const, message };
+    }
+  };
+
   try {
+    const vkContext = payload.kind === "publication"
+      ? await getVkStagedCandidateMedia(candidateId)
+      : { isVkCandidate: false as const, media: [] };
+    if (vkContext.isVkCandidate) {
+      const staged = payload.imageSourceUrl
+        ? vkContext.media.find((media) => media.sourceUrl === payload.imageSourceUrl)
+        : null;
+      if (staged) {
+        try {
+          const result = await importCandidateImageFromStorage({
+            bucketId: staged.bucketId,
+            storagePath: staged.storagePath,
+            owner,
+            uploadedBy
+          });
+          await setCandidateImageWarning(candidateId, null);
+          return result;
+        } catch {
+          // Retry the original VK URL below before using the local fallback.
+        }
+      }
+      if (!payload.imageSourceUrl) return importVkFallback("доступное медиа VK отсутствует");
+      try {
+        const result = await importCandidateImage({
+          sourceUrl: payload.imageSourceUrl,
+          owner,
+          uploadedBy
+        });
+        await setCandidateImageWarning(candidateId, null);
+        return result;
+      } catch {
+        return importVkFallback("медиа VK недоступно");
+      }
+    }
+
+    if (!payload.imageSourceUrl) {
+      const message = "источник не предоставил URL; используется нейтральная заглушка.";
+      await setCandidateImageWarning(candidateId, message);
+      return { status: "warning" as const, message };
+    }
     const result = await importCandidateImage({
       sourceUrl: payload.imageSourceUrl,
       owner,

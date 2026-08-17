@@ -3,10 +3,18 @@ export type VkExternalItemStatus = (typeof vkExternalItemStatuses)[number];
 
 const vkCommunityHostnames = new Set(["vk.com", "www.vk.com", "vk.ru", "www.vk.ru"]);
 
-export const vkManualImportCooldownMs = 24 * 60 * 60 * 1000;
+export const vkManualImportCooldownMs = 60 * 1000;
+export const vkManualImportStaleAfterMs = 5 * 60 * 1000;
+
+export type VkManualImportRunSnapshot = {
+  status: "running" | "succeeded" | "partial" | "failed";
+  startedAt: string;
+  finishedAt: string | null;
+};
 
 export type VkImportAvailability = {
   canRun: boolean;
+  state: "available" | "running" | "cooldown";
   lastStartedAt: string | null;
   nextAvailableAt: string | null;
 };
@@ -53,22 +61,55 @@ export function normalizeVkDomain(rawValue: string) {
 }
 
 export function getVkImportAvailability(
-  lastStartedAt: string | null,
+  runs: readonly VkManualImportRunSnapshot[],
   nowMs = Date.now()
 ): VkImportAvailability {
-  if (!lastStartedAt) {
-    return { canRun: true, lastStartedAt: null, nextAvailableAt: null };
+  const lastStartedAt = runs[0]?.startedAt ?? null;
+  const running = runs.find((run) => run.status === "running");
+  if (running) {
+    const startedAtMs = Date.parse(running.startedAt);
+    if (!Number.isFinite(startedAtMs)) {
+      return {
+        canRun: false,
+        state: "running",
+        lastStartedAt: running.startedAt,
+        nextAvailableAt: null
+      };
+    }
+
+    const staleAtMs = startedAtMs + vkManualImportStaleAfterMs;
+    if (nowMs < staleAtMs) {
+      return {
+        canRun: false,
+        state: "running",
+        lastStartedAt: running.startedAt,
+        nextAvailableAt: new Date(staleAtMs).toISOString()
+      };
+    }
   }
 
-  const lastStartedMs = Date.parse(lastStartedAt);
-  if (!Number.isFinite(lastStartedMs)) {
-    return { canRun: false, lastStartedAt, nextAvailableAt: null };
+  const lastCompletedRun = runs
+    .filter((run) => run.status === "succeeded" || run.status === "partial")
+    .map((run) => ({ run, finishedAtMs: Date.parse(run.finishedAt ?? "") }))
+    .filter(({ finishedAtMs }) => Number.isFinite(finishedAtMs))
+    .sort((left, right) => right.finishedAtMs - left.finishedAtMs)[0];
+
+  if (lastCompletedRun) {
+    const nextAvailableMs = lastCompletedRun.finishedAtMs + vkManualImportCooldownMs;
+    if (nowMs < nextAvailableMs) {
+      return {
+        canRun: false,
+        state: "cooldown",
+        lastStartedAt: lastCompletedRun.run.startedAt,
+        nextAvailableAt: new Date(nextAvailableMs).toISOString()
+      };
+    }
   }
 
-  const nextAvailableMs = lastStartedMs + vkManualImportCooldownMs;
   return {
-    canRun: nowMs >= nextAvailableMs,
+    canRun: true,
+    state: "available",
     lastStartedAt,
-    nextAvailableAt: new Date(nextAvailableMs).toISOString()
+    nextAvailableAt: null
   };
 }

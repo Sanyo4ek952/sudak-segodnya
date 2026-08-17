@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Publication } from "@/entities/publication/model/types";
 import { PublicationCard } from "@/entities/publication/ui/publication-card";
+import { formatDateTime } from "@/shared/lib/date";
 
 const basePublication: Publication = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -62,7 +63,7 @@ describe("PublicationCard regressions", () => {
     expect(countText(markup, "Новость")).toBe(1);
     expect(markup).toContain("23 июля");
     expect(markup).not.toContain("до 30 июля");
-    expect(markup).not.toContain("Цена:");
+    expect(markup).not.toContain(">Цена<");
   });
 
   it("does not show a price for an announcement", () => {
@@ -92,5 +93,68 @@ describe("PublicationCard regressions", () => {
   it("limits card description to two lines", () => {
     const markup = renderToStaticMarkup(<PublicationCard publication={basePublication} />);
     expect(markup).toContain("line-clamp-2");
+  });
+
+  it("keeps a card without an image at the shared feed height", () => {
+    const markup = renderToStaticMarkup(<PublicationCard publication={basePublication} />);
+
+    expect(markup).toContain("flex h-96 flex-col");
+    expect(markup).toContain('style="margin-top:auto"');
+  });
+
+  it("shows event metadata and an organization footer with a round logo", () => {
+    const startsAt = "2026-08-15T19:00:00+03:00";
+    const publication: Publication = {
+      ...basePublication,
+      type: "event",
+      schedule: undefined,
+      scheduleEntries: [],
+      startsAt,
+      place: "Набережная Судака",
+      priceText: "Бесплатно",
+      isFree: true,
+      organization: {
+        ...basePublication.organization,
+        logo: "/brand/organization-logo.png"
+      }
+    };
+    const markup = renderToStaticMarkup(<PublicationCard publication={publication} />);
+
+    expect(markup).toContain(formatDateTime(startsAt));
+    expect(markup).toContain("Набережная Судака");
+    expect(markup).toContain("Бесплатно");
+    expect(markup).toContain("aria-label=\"Открыть организацию: Тестовая организация\"");
+    expect(markup).toContain("rounded-full");
+    expect(markup).toContain("organization-logo.png");
+  });
+
+  it("uses the organization cover when a logo is unavailable", () => {
+    const markup = renderToStaticMarkup(
+      <PublicationCard
+        publication={{
+          ...basePublication,
+          organization: {
+            ...basePublication.organization,
+            cover: "/brand/organization-cover.png"
+          }
+        }}
+      />
+    );
+
+    expect(markup).toContain("organization-cover.png");
+    expect(markup).toContain("object-cover");
+  });
+
+  it("does not nest links when rendering a card photo", () => {
+    const markup = renderToStaticMarkup(
+      <PublicationCard
+        publication={{
+          ...basePublication,
+          media: [{ id: "photo-1", kind: "photo", posterUrl: "/brand/vk-import-fallback.png" }]
+        }}
+      />
+    );
+
+    expect(markup).not.toMatch(/<a\b[^>]*>(?:(?!<\/a>)[\s\S])*?<a\b/);
   });
 });

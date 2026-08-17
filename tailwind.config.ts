@@ -12,9 +12,13 @@ const config: Config = {
         "foreground-muted": "hsl(var(--foreground-muted))",
         border: "hsl(var(--border))",
         primary: "hsl(var(--primary))",
+        "primary-600": "hsl(var(--primary-600))",
         "primary-foreground": "hsl(var(--primary-foreground))",
         secondary: "hsl(var(--secondary))",
         accent: "hsl(var(--accent))",
+        "accent-light": "hsl(var(--accent-light))",
+        sand: "hsl(var(--sand))",
+        coral: "hsl(var(--coral))",
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
         error: "hsl(var(--error))",
@@ -32,7 +36,8 @@ const config: Config = {
       },
       maxWidth: {
         content: "var(--container-public)",
-        form: "var(--container-form)"
+        form: "var(--container-form)",
+        dashboard: "var(--container-dashboard)"
       }
     }
   },

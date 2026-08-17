@@ -15,6 +15,8 @@ export type PublicationOrganization = {
   id: string;
   slug: string;
   name: string;
+  logo?: string;
+  cover?: string;
 };
 
 export type PublicationSchedule = {
@@ -24,6 +26,28 @@ export type PublicationSchedule = {
   endsAt?: string;
   timezone: string;
 };
+
+type PublicationMediaBase = {
+  id: string;
+  posterUrl: string;
+  title?: string;
+  width?: number;
+  height?: number;
+};
+
+export type PublicationPhotoMedia = PublicationMediaBase & {
+  kind: "photo";
+};
+
+export type PublicationVkVideoMedia = PublicationMediaBase & {
+  kind: "video" | "clip";
+  provider: "vk";
+  sourceUrl: string;
+  embedUrl: string;
+  durationSeconds?: number;
+};
+
+export type PublicationMedia = PublicationPhotoMedia | PublicationVkVideoMedia;
 
 export type Publication = {
   id: string;
@@ -42,6 +66,8 @@ export type Publication = {
   priceText: string;
   isFree: boolean;
   category: PublicationCategory;
+  media?: PublicationMedia[];
+  /** Computed cover URL kept for metadata and gradual migration. */
   image?: string;
   contactPhone?: string;
   ageLimit?: string;

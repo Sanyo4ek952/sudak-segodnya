@@ -31,7 +31,7 @@ export default async function NewPublicationPage({ params }: NewPublicationPageP
       <SectionHeader as="h1" title="Новая публикация" description="Заполните основные данные материала." />
       <Card>
         <CardContent>
-          <PublicationForm
+      <PublicationForm
             organizationId={organizationId}
             organizationAddress={organization.address}
             categories={categories}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   createVkSourceAction,
   runVkImportNowAction,
@@ -30,7 +30,8 @@ const moscowDateTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
   day: "numeric",
   month: "long",
   hour: "2-digit",
-  minute: "2-digit"
+  minute: "2-digit",
+  second: "2-digit"
 });
 
 export function CreateVkSourceForm({ organizations }: { organizations: OrganizationOption[] }) {
@@ -158,11 +159,39 @@ export function VkSourceSettingsForm({
 
 export function RunVkImportForm({ availability }: { availability: VkImportAvailability }) {
   const [state, action] = useActionState(runVkImportNowAction, initialVkImportActionState);
-  const availabilityMessage = availability.canRun
-    ? "Доступен один ручной запуск в 24 часа."
-    : availability.nextAvailableAt
-      ? `Следующий запуск: ${moscowDateTimeFormatter.format(new Date(availability.nextAvailableAt))} МСК.`
-      : "Повторный запуск временно недоступен.";
+  const [availabilityClock, setAvailabilityClock] = useState(() => Date.now());
+  const nextAvailableMs = availability.nextAvailableAt
+    ? Date.parse(availability.nextAvailableAt)
+    : Number.NaN;
+  const waitElapsed = !availability.canRun
+    && Number.isFinite(nextAvailableMs)
+    && availabilityClock >= nextAvailableMs;
+  const currentAvailability: VkImportAvailability = waitElapsed
+    ? {
+        canRun: true,
+        state: "available",
+        lastStartedAt: availability.lastStartedAt,
+        nextAvailableAt: null
+      }
+    : availability;
+
+  useEffect(() => {
+    if (availability.canRun || !availability.nextAvailableAt) return;
+
+    const remainingMs = Date.parse(availability.nextAvailableAt) - Date.now();
+    const timeoutId = window.setTimeout(() => {
+      setAvailabilityClock(Date.now());
+    }, Math.max(0, remainingMs) + 100);
+    return () => window.clearTimeout(timeoutId);
+  }, [availability]);
+
+  const availabilityMessage = currentAvailability.canRun
+    ? "Ручную синхронизацию можно запускать в любое время."
+    : currentAvailability.state === "running"
+      ? "Синхронизация уже выполняется. Новый запуск станет доступен после завершения."
+      : currentAvailability.nextAvailableAt
+        ? `Следующий запуск: ${moscowDateTimeFormatter.format(new Date(currentAvailability.nextAvailableAt))} МСК.`
+        : "Повторный запуск временно недоступен.";
   return (
     <form action={action} className="max-w-xs space-y-2">
       <VkImportActionMessage state={state} />
@@ -170,7 +199,7 @@ export function RunVkImportForm({ availability }: { availability: VkImportAvaila
         variant="outline"
         size="sm"
         pendingLabel="Синхронизируем…"
-        disabled={!availability.canRun}
+        disabled={!currentAvailability.canRun}
       >
         Синхронизировать
       </SubmitButton>

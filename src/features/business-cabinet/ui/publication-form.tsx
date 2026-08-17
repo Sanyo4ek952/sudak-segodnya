@@ -599,8 +599,10 @@ export function PublicationForm({
           ) : null}
           <div className={cn("space-y-4 p-4", previewMode === "detail" && "sm:p-6")}>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="info">{businessPublicationTypeLabels[type]}</Badge>
-              {isFree && showPrice ? <Badge variant="success">Бесплатно</Badge> : null}
+              <Badge variant={type === "regular" ? "accent" : "info"}>
+                {businessPublicationTypeLabels[type]}
+              </Badge>
+              {isFree && showPrice ? <Badge variant="sand">Бесплатно</Badge> : null}
             </div>
             <div className="space-y-2">
               <h3 className={cn("font-semibold leading-snug", previewMode === "detail" ? "text-2xl" : "text-lg")}>

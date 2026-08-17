@@ -17,7 +17,7 @@ export function OrganizationCatalogFilters({
   const hasFilters = Boolean(filters.query || filters.type);
 
   return (
-    <form action="/organizations" className="rounded-lg border border-border bg-surface p-4 sm:p-5" role="search">
+    <form action="/organizations" className="rounded-lg border border-border/90 bg-surface p-4 shadow-card sm:p-5" role="search">
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_14rem_auto] sm:items-end">
         <FormField id="organizationQuery" label="Название организации">
           <Input

@@ -38,10 +38,10 @@ export function PublicFeed({
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">("idle");
   const importantAnnouncementCard = importantAnnouncement ? (
-    <Card className="border-info bg-surface">
+    <Card className="border-coral/35 bg-coral/5 shadow-none">
       <CardContent className="space-y-2 py-3 sm:space-y-3 sm:py-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="info">Важно</Badge>
+          <Badge variant="coral">Важно</Badge>
           {importantAnnouncement.activeUntil ? (
             <span className="text-sm text-foreground-muted">
               до {formatDate(importantAnnouncement.activeUntil)}
@@ -105,7 +105,7 @@ export function PublicFeed({
           <Link
             href={`/publications/${importantAnnouncement.publicationSlug}`}
             aria-label={`Открыть важное объявление: ${importantAnnouncement.title}`}
-            className="group block rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info focus-visible:ring-offset-2"
+              className="group block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             {importantAnnouncementCard}
           </Link>
@@ -114,13 +114,7 @@ export function PublicFeed({
         )
       ) : null}
 
-      <div className="space-y-2">
-        <div>
-          <h2 className="text-xl font-semibold">Городская лента</h2>
-          <p className="hidden text-sm leading-6 text-foreground-muted sm:block">
-            Сначала — происходящее сейчас и ближайшее по времени.
-          </p>
-        </div>
+      <div className="pt-1">
         <FeedFilters value={filter} />
       </div>
 

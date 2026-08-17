@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CandidateMediaEditorServer } from "@/features/content-ingestion/ui/candidate-media-editor-server";
 import type { ReactNode } from "react";
 import {
   getAdminContentCandidate,
@@ -151,7 +152,8 @@ export default async function AdminImportCandidatePage({ params }: AdminImportCa
               title="Нормализованные данные"
               description="Правки можно сохранить отдельно, не меняя публичные данные."
             />
-            <CandidateReviewForm
+      <CandidateMediaEditorServer candidateId={candidate.id} />
+      <CandidateReviewForm
               key={detail.updated_at}
               candidateId={detail.id}
               candidateUpdatedAt={detail.updated_at}

@@ -17,7 +17,9 @@ export type ImportantAnnouncement = {
 };
 
 type PublicationRow = Tables<"publications"> & {
-  organizations: Pick<Tables<"organizations">, "id" | "slug" | "name" | "address" | "phone"> | null;
+  organizations: (Pick<Tables<"organizations">, "id" | "slug" | "name" | "address" | "phone"> & {
+    media_assets: Array<Pick<Tables<"media_assets">, "bucket_id" | "storage_path" | "purpose" | "sort_order">>;
+  }) | null;
   publication_categories: Pick<Tables<"publication_categories">, "slug" | "name"> | null;
   publication_schedules: Array<
     Pick<
@@ -43,7 +45,7 @@ type PublicationSeoRow = Pick<
 
 const publicationSelect = `
   *,
-  organizations(id, slug, name, address, phone),
+  organizations(id, slug, name, address, phone, media_assets(bucket_id, storage_path, purpose, sort_order)),
   publication_categories(slug, name),
   publication_schedules(schedule_text, weekday, starts_at, ends_at, timezone, sort_order),
   media_assets(bucket_id, storage_path, purpose, sort_order)
@@ -94,6 +96,12 @@ async function mapPublication(
     .slice()
     .sort((a, b) => a.sort_order - b.sort_order)
     .find((asset) => asset.purpose === "publication_photo");
+  const organizationAssets = row.organizations.media_assets
+    .slice()
+    .filter((asset) => asset.storage_path)
+    .sort((a, b) => a.sort_order - b.sort_order);
+  const organizationLogo = organizationAssets.find((asset) => asset.purpose === "organization_logo");
+  const organizationCover = organizationAssets.find((asset) => asset.purpose === "organization_cover");
   const schedule = row.publication_schedules
     .slice()
     .sort((a, b) => a.sort_order - b.sort_order)
@@ -111,6 +119,11 @@ async function mapPublication(
       timezone: item.timezone
     }));
 
+  const [image, organizationImage] = await Promise.all([
+    getImageUrl(supabase, imageAsset),
+    getImageUrl(supabase, organizationLogo ?? organizationCover)
+  ]);
+
   return {
     id: row.id,
     slug: row.slug,
@@ -121,7 +134,9 @@ async function mapPublication(
     organization: {
       id: row.organizations.id,
       slug: row.organizations.slug,
-      name: row.organizations.name
+      name: row.organizations.name,
+      logo: organizationLogo ? organizationImage : undefined,
+      cover: organizationLogo ? undefined : organizationImage
     },
     startsAt: row.starts_at ?? undefined,
     endsAt: row.ends_at ?? undefined,
@@ -132,7 +147,7 @@ async function mapPublication(
     priceText: row.price_text ?? (row.is_free ? "Бесплатно" : "Уточняйте"),
     isFree: row.is_free,
     category,
-    image: await getImageUrl(supabase, imageAsset),
+    image,
     contactPhone: row.contact_phone ?? row.organizations.phone ?? undefined,
     ageLimit: row.age_limit ?? undefined,
     publishedAt: row.published_at ?? undefined,
